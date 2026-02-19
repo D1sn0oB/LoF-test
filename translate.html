@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>翻译工具 - God Reader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9ff;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .logo-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .back-btn {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+            padding: 10px 16px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+        }
+        
+        .translation-container {
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            padding: 32px;
+        }
+        
+        .translation-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .translation-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .translation-subtitle {
+            font-size: 14px;
+            color: #999;
+        }
+        
+        .translation-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .input-section,
+        .output-section {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        
+        .text-area {
+            flex: 1;
+            min-height: 300px;
+            padding: 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .text-area:focus {
+            outline: none;
+            border-color: #409eff;
+            box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .translate-btn {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 32px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .translate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+        }
+        
+        .clear-btn {
+            background: none;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px 32px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .clear-btn:hover {
+            border-color: #409eff;
+            color: #409eff;
+            transform: translateY(-2px);
+        }
+        
+        .language-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .language-option {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+        
+        .language-option.active {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .language-option:hover:not(.active) {
+            border-color: #409eff;
+            color: #409eff;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .logo-text {
+                font-size: 20px;
+            }
+            
+            .translation-container {
+                padding: 24px;
+            }
+            
+            .translation-content {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .text-area {
+                min-height: 200px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .translate-btn,
+            .clear-btn {
+                width: 100%;
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <span style="font-size: 24px; color: white; font-weight: bold;">📚</span>
+                </div>
+                <div class="logo-content">
+                    <div class="logo-text">God Reader</div>
+                </div>
+            </div>
+            <button class="back-btn" id="back-btn">
+                ← 返回阅读器
+            </button>
+        </div>
+        
+        <!-- 翻译容器 -->
+        <div class="translation-container">
+            <div class="translation-header">
+                <div class="translation-title">翻译工具</div>
+                <div class="translation-subtitle">输入文本并获取翻译结果</div>
+            </div>
+            
+            <!-- 语言方向选择 -->
+            <div class="language-selector" style="margin-bottom: 24px;">
+                <div class="language-option active" data-direction="en-zh">英译中</div>
+                <div class="language-option" data-direction="zh-en">中译英</div>
+            </div>
+            
+            <!-- 翻译内容区域 -->
+            <div class="translation-content">
+                <!-- 输入区域 -->
+                <div class="input-section">
+                    <div class="section-title">原文</div>
+                    <textarea class="text-area" id="input-text" placeholder="请输入要翻译的文本..."></textarea>
+                </div>
+                
+                <!-- 输出区域 -->
+                <div class="output-section">
+                    <div class="section-title">译文</div>
+                    <textarea class="text-area" id="output-text" placeholder="翻译结果将显示在这里..." readonly></textarea>
+                </div>
+            </div>
+            
+            <!-- 控制按钮 -->
+            <div class="controls">
+                <button class="translate-btn" id="translate-btn">开始翻译</button>
+                <button class="clear-btn" id="clear-btn">清空</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let currentDirection = 'en-zh'; // 默认英译中
+        
+        // 绑定事件
+        function bindEvents() {
+            // 返回按钮
+            document.getElementById('back-btn').addEventListener('click', () => {
+                window.location.href = 'reader.html';
+            });
+            
+            // 翻译按钮
+            document.getElementById('translate-btn').addEventListener('click', translateText);
+            
+            // 清空按钮
+            document.getElementById('clear-btn').addEventListener('click', clearText);
+            
+            // 语言方向选择
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    // 移除所有active类
+                    document.querySelectorAll('.language-option').forEach(opt => opt.classList.remove('active'));
+                    // 添加active类到当前选项
+                    option.classList.add('active');
+                    // 更新当前翻译方向
+                    currentDirection = option.dataset.direction;
+                });
+            });
+        }
+        
+        // 翻译文本（使用API）
+        function translateText() {
+            const inputText = document.getElementById('input-text').value.trim();
+            const outputText = document.getElementById('output-text');
+            
+            if (!inputText) {
+                alert('请输入要翻译的文本');
+                return;
+            }
+            
+            // 显示加载状态
+            outputText.value = '翻译中...';
+            
+            // 准备API参数
+            const [sourceLang, targetLang] = currentDirection.split('-');
+            
+            // 尝试使用多个免费翻译API
+            const apis = [
+                {
+                    url: 'https://api.mymemory.translated.net/get',
+                    name: 'MyMemory Translate',
+                    type: 'get'
+                },
+                {
+                    url: 'https://translate.freetranslateapi.com/translate',
+                    name: 'FreeTranslate API',
+                    type: 'post'
+                }
+            ];
+            
+            // 尝试调用API
+            function tryApi(apiIndex) {
+                if (apiIndex >= apis.length) {
+                    // 所有API都失败了，使用备选方案
+                    useFallbackTranslation(inputText, targetLang);
+                    return;
+                }
+                
+                const api = apis[apiIndex];
+                
+                if (api.name === 'MyMemory Translate') {
+                    // MyMemory Translate API - 使用GET请求
+                    const url = `${api.url}?q=${encodeURIComponent(inputText)}&langpair=${sourceLang}|${targetLang}`;
+                    
+                    fetch(url, {
+                        method: 'GET',
+                        timeout: 10000 // 10秒超时
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // 显示翻译结果
+                        const translatedText = data.responseData && data.responseData.translatedText ? data.responseData.translatedText : '翻译失败：未返回结果';
+                        outputText.value = translatedText;
+                    })
+                    .catch(error => {
+                        console.error(`${api.name} API错误:`, error);
+                        // 尝试下一个API
+                        tryApi(apiIndex + 1);
+                    });
+                } else if (api.name === 'FreeTranslate API') {
+                    // FreeTranslate API - 使用POST请求
+                    const requestData = {
+                        q: inputText,
+                        source: sourceLang,
+                        target: targetLang,
+                        format: 'text'
+                    };
+                    
+                    fetch(api.url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData),
+                        timeout: 10000 // 10秒超时
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // 显示翻译结果
+                        const translatedText = data.translatedText || data.result || '翻译失败：未返回结果';
+                        outputText.value = translatedText;
+                    })
+                    .catch(error => {
+                        console.error(`${api.name} API错误:`, error);
+                        // 尝试下一个API
+                        tryApi(apiIndex + 1);
+                    });
+                }
+            }
+            
+            // 开始尝试API
+            tryApi(0);
+        }
+        
+        // 备选翻译方案（当API不可用时）
+        function useFallbackTranslation(text, targetLang) {
+            // 简单的词典翻译作为备选方案
+            const dictionary = {
+                // 英译中
+                'hello': '你好',
+                'world': '世界',
+                'we': '我们',
+                'are': '是',
+                'the': '',
+                'roots': '根',
+                'of': '的',
+                'youth': '青春',
+                'and': '和',
+                'limbs': '肢体',
+                'faith': '信仰',
+                'i': '我',
+                'you': '你',
+                'he': '他',
+                'she': '她',
+                'it': '它',
+                'they': '他们',
+                'this': '这个',
+                'that': '那个',
+                'these': '这些',
+                'those': '那些',
+                'yes': '是的',
+                'no': '不',
+                'good': '好的',
+                'morning': '早晨',
+                'afternoon': '下午',
+                'evening': '晚上',
+                'night': '夜晚',
+                'thank': '谢谢',
+                'thanks': '谢谢',
+                'your': '你的',
+                'my': '我的',
+                'our': '我们的',
+                'their': '他们的',
+                'what': '什么',
+                'where': '哪里',
+                'when': '什么时候',
+                'why': '为什么',
+                'how': '如何',
+                'who': '谁',
+                'which': '哪个',
+                'but': '但是',
+                'because': '因为',
+                'so': '所以',
+                'if': '如果',
+                'now': '现在',
+                'today': '今天',
+                'tomorrow': '明天',
+                'yesterday': '昨天',
+                'book': '书',
+                'read': '读',
+                'write': '写',
+                'learn': '学习',
+                'study': '学习',
+                'language': '语言',
+                'english': '英语',
+                'chinese': '中文',
+                'computer': '电脑',
+                'phone': '手机',
+                'internet': '互联网',
+                'email': '电子邮件',
+                'message': '消息',
+                'friend': '朋友',
+                'family': '家庭',
+                'home': '家',
+                'school': '学校',
+                'work': '工作',
+                'job': '工作',
+                'money': '钱',
+                'time': '时间',
+                'day': '天',
+                'week': '周',
+                'month': '月',
+                'year': '年',
+                'love': '爱',
+                'like': '喜欢',
+                'hate': '讨厌',
+                'happy': '开心',
+                'sad': '难过',
+                'angry': '生气',
+                'tired': '累',
+                'hungry': '饿',
+                'thirsty': '渴',
+                'hot': '热',
+                'cold': '冷',
+                'big': '大',
+                'small': '小',
+                'tall': '高',
+                'short': '矮',
+                'long': '长',
+                'wide': '宽',
+                'deep': '深',
+                'fast': '快',
+                'slow': '慢',
+                'good': '好',
+                'bad': '坏',
+                'new': '新',
+                'old': '旧',
+                'beautiful': '美丽',
+                'ugly': '丑陋',
+                'smart': '聪明',
+                'stupid': '愚蠢',
+                'rich': '富有',
+                'poor': '贫穷',
+                'healthy': '健康',
+                'sick': '生病',
+                'strong': '强壮',
+                'weak': '虚弱',
+                
+                // 中译英
+                '你好': 'hello',
+                '世界': 'world',
+                '我们': 'we',
+                '是': 'are',
+                '根': 'roots',
+                '的': 'of',
+                '青春': 'youth',
+                '和': 'and',
+                '肢体': 'limbs',
+                '信仰': 'faith',
+                '我': 'I',
+                '你': 'you',
+                '他': 'he',
+                '她': 'she',
+                '它': 'it',
+                '他们': 'they',
+                '这个': 'this',
+                '那个': 'that',
+                '这些': 'these',
+                '那些': 'those',
+                '是的': 'yes',
+                '不': 'no',
+                '好的': 'good',
+                '早晨': 'morning',
+                '下午': 'afternoon',
+                '晚上': 'evening',
+                '夜晚': 'night',
+                '谢谢': 'thank you',
+                '你的': 'your',
+                '我的': 'my',
+                '我们的': 'our',
+                '他们的': 'their',
+                '什么': 'what',
+                '哪里': 'where',
+                '什么时候': 'when',
+                '为什么': 'why',
+                '如何': 'how',
+                '谁': 'who',
+                '哪个': 'which',
+                '但是': 'but',
+                '因为': 'because',
+                '所以': 'so',
+                '如果': 'if',
+                '现在': 'now',
+                '今天': 'today',
+                '明天': 'tomorrow',
+                '昨天': 'yesterday',
+                '书': 'book',
+                '读': 'read',
+                '写': 'write',
+                '学习': 'learn',
+                '语言': 'language',
+                '英语': 'English',
+                '中文': 'Chinese',
+                '电脑': 'computer',
+                '手机': 'phone',
+                '互联网': 'internet',
+                '电子邮件': 'email',
+                '消息': 'message',
+                '朋友': 'friend',
+                '家庭': 'family',
+                '家': 'home',
+                '学校': 'school',
+                '工作': 'work',
+                '钱': 'money',
+                '时间': 'time',
+                '天': 'day',
+                '周': 'week',
+                '月': 'month',
+                '年': 'year',
+                '爱': 'love',
+                '喜欢': 'like',
+                '讨厌': 'hate',
+                '开心': 'happy',
+                '难过': 'sad',
+                '生气': 'angry',
+                '累': 'tired',
+                '饿': 'hungry',
+                '渴': 'thirsty',
+                '热': 'hot',
+                '冷': 'cold',
+                '大': 'big',
+                '小': 'small',
+                '高': 'tall',
+                '矮': 'short',
+                '长': 'long',
+                '宽': 'wide',
+                '深': 'deep',
+                '快': 'fast',
+                '慢': 'slow',
+                '好': 'good',
+                '坏': 'bad',
+                '新': 'new',
+                '旧': 'old',
+                '美丽': 'beautiful',
+                '丑陋': 'ugly',
+                '聪明': 'smart',
+                '愚蠢': 'stupid',
+                '富有': 'rich',
+                '贫穷': 'poor',
+                '健康': 'healthy',
+                '生病': 'sick',
+                '强壮': 'strong',
+                '虚弱': 'weak',
+                '去': 'go',
+                '早': 'early',
+                '说': 'say',
+                '不早说': 'why didn\'t you say so earlier',
+                '我去': 'oh my god',
+                '我去不早说': 'Oh my god, why didn\'t you say so earlier'
+            };
+            
+            // 处理翻译
+            let translatedText = '';
+            
+            if (targetLang === 'zh') {
+                // 英译中
+                const words = text.toLowerCase().split(/\s+/);
+                translatedText = words.map(word => {
+                    // 移除标点符号
+                    const cleanWord = word.replace(/[.,?!;:"'()\[\]{}]/g, '');
+                    return dictionary[cleanWord] || cleanWord;
+                }).join('');
+            } else if (targetLang === 'en') {
+                // 中译英
+                // 优先匹配完整短语
+                if (dictionary[text]) {
+                    translatedText = dictionary[text];
+                } else {
+                    // 简单的中文分词（基于词典）
+                    let remainingText = text;
+                    while (remainingText.length > 0) {
+                        let found = false;
+                        // 尝试匹配最长的词语
+                        for (let i = Math.min(remainingText.length, 4); i >= 1; i--) {
+                            const substring = remainingText.substring(0, i);
+                            if (dictionary[substring]) {
+                                translatedText += dictionary[substring] + ' ';
+                                remainingText = remainingText.substring(i);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            // 没有找到匹配的词语，添加单个字符
+                            translatedText += remainingText[0];
+                            remainingText = remainingText.substring(1);
+                        }
+                    }
+                }
+            }
+            
+            // 显示备选翻译结果
+            document.getElementById('output-text').value = `API服务暂时不可用，以下是备选翻译结果：\n\n${translatedText}\n\n提示：请稍后再试，API服务可能会恢复正常。`;
+        }
+        
+        // 清空文本
+        function clearText() {
+            document.getElementById('input-text').value = '';
+            document.getElementById('output-text').value = '';
+        }
+        
+        // 初始化
+        function init() {
+            bindEvents();
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

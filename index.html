@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>God Reader - 电子书阅读器</title>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9ff;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .logo-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+        
+        .logo-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .logo-subtext {
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+            font-family: 'Georgia', serif;
+            letter-spacing: 0.5px;
+        }
+        
+        .upload-btn {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+        }
+        
+        .upload-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+        
+        .search-bar {
+            margin-bottom: 24px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 14px 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+            background-color: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .search-input:focus {
+            border-color: #409eff;
+            box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        .category-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .tab:hover:not(.active) {
+            border-color: #409eff;
+            color: #409eff;
+            transform: translateY(-1px);
+        }
+        
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 100px 0;
+            text-align: center;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        }
+        
+        .empty-state.hidden {
+            display: none;
+        }
+        
+        .empty-icon {
+            width: 96px;
+            height: 96px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .empty-icon svg {
+            width: 48px;
+            height: 48px;
+            fill: white;
+        }
+        
+        .empty-text {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .empty-subtext {
+            font-size: 14px;
+            color: #999;
+        }
+        
+        .book-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 24px;
+            min-height: 200px;
+        }
+        
+        .book-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: white;
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+        
+        .book-item:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 8px 24px rgba(64, 158, 255, 0.15);
+        }
+        
+        .delete-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .book-item:hover .delete-btn {
+            opacity: 1;
+        }
+        
+        .delete-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+        }
+        
+        .book-cover {
+            width: 100%;
+            aspect-ratio: 2/3;
+            background: linear-gradient(135deg, #f0f9ff 0%, #fef0f5 100%);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #f0f0f0;
+        }
+        
+        .book-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .book-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #333;
+        }
+        
+        .book-meta {
+            font-size: 12px;
+            color: #999;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        /* 隐藏的文件输入 */
+        #file-input {
+            display: none;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 24px;
+            background-color: white;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid transparent;
+            border-image: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border-image-slice: 1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 导入弹窗 */
+        .import-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .import-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(64, 158, 255, 0.2);
+            transform: scale(0.8) translateY(20px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .import-modal.show .modal-content {
+            transform: scale(1) translateY(0);
+        }
+        
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+            position: relative;
+        }
+        
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .modal-subtitle {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 32px;
+            height: 32px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .close-btn:hover {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .upload-area {
+            border: 2px dashed #e0e0e0;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background-color: #fafafa;
+        }
+        
+        .upload-area:hover {
+            border-color: #409eff;
+            background-color: #f0f9ff;
+            transform: translateY(-2px);
+        }
+        
+        .upload-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 4px 16px rgba(64, 158, 255, 0.2);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 4px 16px rgba(64, 158, 255, 0.2);
+            }
+            50% {
+                box-shadow: 0 6px 24px rgba(64, 158, 255, 0.4);
+            }
+            100% {
+                box-shadow: 0 4px 16px rgba(64, 158, 255, 0.2);
+            }
+        }
+        
+        .upload-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+        
+        .upload-text {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .upload-subtext {
+            font-size: 14px;
+            color: #999;
+        }
+        
+        .file-types {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        
+        .file-type {
+            background: linear-gradient(135deg, #f0f9ff 0%, #fef0f5 100%);
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+        
+        .file-type:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .logo-text {
+                font-size: 20px;
+            }
+            
+            .book-list {
+                grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+                gap: 16px;
+            }
+            
+            .modal-content {
+                padding: 24px;
+                width: 95%;
+            }
+            
+            .upload-area {
+                padding: 30px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <span style="font-size: 24px; color: white; font-weight: bold;">📚</span>
+                </div>
+                <div class="logo-content">
+                    <div class="logo-text">God Reader</div>
+                    <div class="logo-subtext">We are the roots of youth and the limbs of faith</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="clear-data-btn" style="background: none; border: 1px solid #ff4d4f; color: #ff4d4f; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 12px; transition: all 0.3s ease;" title="清除所有数据">
+                    清除数据
+                </button>
+                <button class="upload-btn" id="open-modal-btn">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+            <input type="text" class="search-input" placeholder="搜索书籍...">
+        </div>
+        
+        <!-- 分类标签 -->
+        <div class="category-tabs">
+            <div class="tab active" data-category="all">全部书籍</div>
+            <div class="tab" data-category="recent">最近阅读</div>
+            <div class="tab" data-category="epub">EPUB</div>
+            <div class="tab" data-category="pdf">PDF</div>
+            <div class="tab" data-category="txt">TXT</div>
+        </div>
+        
+        <!-- 加载动画 -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>处理中...</div>
+        </div>
+        
+        <!-- 空状态 -->
+        <div class="empty-state" id="empty-state">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+            </div>
+            <div class="empty-text">还没有书籍</div>
+            <div class="empty-subtext">点击右上角导入您的电子书</div>
+        </div>
+        
+        <!-- 书籍列表 -->
+        <div class="book-list" id="book-list">
+        </div>
+    </div>
+    
+    <!-- 导入弹窗 -->
+    <div class="import-modal" id="import-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">导入书籍</h2>
+                <p class="modal-subtitle">选择或拖拽文件到此处</p>
+                <button class="close-btn" id="close-modal-btn">×</button>
+            </div>
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+                    </svg>
+                </div>
+                <div class="upload-text">点击或拖拽文件到此处</div>
+                <div class="upload-subtext">支持 EPUB、PDF 和 TXT 格式</div>
+            </div>
+            <div class="file-types">
+                <div class="file-type">EPUB</div>
+                <div class="file-type">PDF</div>
+                <div class="file-type">TXT</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancel-btn">取消</button>
+                <label class="btn btn-primary">
+                    选择文件
+                    <input type="file" id="file-input" accept=".epub,.pdf,.txt" style="display: none;">
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 书籍数据
+        let books = [];
+        // 搜索关键词
+        let searchKeyword = '';
+        
+        // ArrayBuffer 转 Base64
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            let bytes = new Uint8Array(buffer);
+            let len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+        
+        // 生成随机封面
+        function generateRandomCover() {
+            // 创建 Canvas 元素
+            const canvas = document.createElement('canvas');
+            canvas.width = 260; // 封面宽度
+            canvas.height = 390; // 封面高度 (2:3 比例)
+            const ctx = canvas.getContext('2d');
+            
+            // 生成随机颜色
+            const color1 = getRandomColor();
+            const color2 = getRandomColor();
+            
+            // 创建渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            
+            // 填充背景
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制随机图案
+            drawRandomPattern(ctx, canvas.width, canvas.height);
+            
+            // 将 Canvas 转换为数据 URL
+            return canvas.toDataURL('image/png');
+        }
+        
+        // 生成随机颜色
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+        
+        // 绘制随机图案
+        function drawRandomPattern(ctx, width, height) {
+            const patternType = Math.floor(Math.random() * 4); // 0-3 四种图案类型
+            
+            switch (patternType) {
+                case 0:
+                    // 绘制随机圆形
+                    drawRandomCircles(ctx, width, height);
+                    break;
+                case 1:
+                    // 绘制随机矩形
+                    drawRandomRectangles(ctx, width, height);
+                    break;
+                case 2:
+                    // 绘制随机三角形
+                    drawRandomTriangles(ctx, width, height);
+                    break;
+                case 3:
+                    // 绘制随机线条
+                    drawRandomLines(ctx, width, height);
+                    break;
+            }
+        }
+        
+        // 绘制随机圆形
+        function drawRandomCircles(ctx, width, height) {
+            const count = Math.floor(Math.random() * 10) + 5; // 5-14 个圆形
+            
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const radius = Math.random() * 30 + 10; // 10-40 半径
+                const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 透明度
+                
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.fill();
+            }
+        }
+        
+        // 绘制随机矩形
+        function drawRandomRectangles(ctx, width, height) {
+            const count = Math.floor(Math.random() * 8) + 4; // 4-11 个矩形
+            
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const rectWidth = Math.random() * 40 + 20; // 20-60 宽度
+                const rectHeight = Math.random() * 40 + 20; // 20-60 高度
+                const rotation = Math.random() * Math.PI * 2; // 随机旋转角度
+                const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 透明度
+                
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.fillRect(-rectWidth/2, -rectHeight/2, rectWidth, rectHeight);
+                ctx.restore();
+            }
+        }
+        
+        // 绘制随机三角形
+        function drawRandomTriangles(ctx, width, height) {
+            const count = Math.floor(Math.random() * 8) + 4; // 4-11 个三角形
+            
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const size = Math.random() * 40 + 20; // 20-60 大小
+                const rotation = Math.random() * Math.PI * 2; // 随机旋转角度
+                const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 透明度
+                
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                ctx.beginPath();
+                ctx.moveTo(0, -size/2);
+                ctx.lineTo(size/2, size/2);
+                ctx.lineTo(-size/2, size/2);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+        
+        // 绘制随机线条
+        function drawRandomLines(ctx, width, height) {
+            const count = Math.floor(Math.random() * 15) + 10; // 10-24 条线条
+            
+            for (let i = 0; i < count; i++) {
+                const x1 = Math.random() * width;
+                const y1 = Math.random() * height;
+                const x2 = Math.random() * width;
+                const y2 = Math.random() * height;
+                const lineWidth = Math.random() * 3 + 1; // 1-4 线宽
+                const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 透明度
+                
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.lineWidth = lineWidth;
+                ctx.stroke();
+            }
+        }
+        
+        // 提取 EPUB 封面
+        async function extractEPUBCover(arrayBuffer, book) {
+            try {
+                console.log('开始提取EPUB封面...');
+                
+                // 创建 EPUB 对象
+                const epubBook = ePub(arrayBuffer);
+                
+                // 等待 EPUB 加载完成
+                await epubBook.ready;
+                
+                // 尝试获取封面
+                const coverUrl = await epubBook.coverUrl();
+                
+                if (coverUrl) {
+                    console.log('封面URL获取成功:', coverUrl);
+                    
+                    // 将封面URL转换为Base64以便存储
+                    const response = await fetch(coverUrl);
+                    const blob = await response.blob();
+                    
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } else {
+                    console.log('EPUB文件没有封面');
+                    return null;
+                }
+            } catch (error) {
+                console.error('提取EPUB封面失败:', error);
+                return null;
+            }
+        }
+        
+        // 初始化
+        function init() {
+            console.log('开始初始化...');
+            
+            // 等待DOM完全加载
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('DOM加载完成，开始初始化');
+                    loadBooks();
+                    bindEvents();
+                });
+            } else {
+                console.log('DOM已经加载完成，直接初始化');
+                loadBooks();
+                bindEvents();
+            }
+        }
+        
+        // 加载书籍
+        function loadBooks() {
+            console.log('开始加载书籍...');
+            const savedBooks = localStorage.getItem('godReaderBooks');
+            if (savedBooks) {
+                const oldBooks = JSON.parse(savedBooks);
+                
+                // 数据迁移：将旧的file字段转换为fileData
+                const migrationResult = oldBooks.map(book => {
+                    if (book.file && !book.fileData) {
+                        // 旧数据格式，需要重新导入
+                        return { title: book.title, needsReimport: true };
+                    }
+                    return book;
+                });
+                
+                // 检查是否有需要重新导入的书籍
+                const needsReimport = migrationResult.filter(b => b.needsReimport);
+                if (needsReimport.length > 0) {
+                    const bookNames = needsReimport.map(b => b.title).join('、');
+                    alert(`发现${needsReimport.length}本旧格式的书籍需要重新导入：\n\n${bookNames}\n\n请重新导入这些书籍。`);
+                }
+                
+                // 过滤掉旧格式数据
+                books = oldBooks.filter(book => book.fileData);
+                
+                // 保存清理后的数据
+                saveBooks();
+                
+                console.log('书籍加载完成，开始渲染...');
+                renderBooks();
+            } else {
+                console.log('没有保存的书籍数据');
+            }
+        }
+        
+        // 保存书籍
+        function saveBooks() {
+            localStorage.setItem('godReaderBooks', JSON.stringify(books));
+        }
+        
+        // 渲染书籍列表
+        function renderBooks(filter = 'all') {
+            console.log('renderBooks被调用，filter:', filter);
+            console.log('当前书籍数量:', books.length);
+            console.log('当前搜索关键词:', searchKeyword);
+            
+            const bookList = document.getElementById('book-list');
+            const emptyState = document.getElementById('empty-state');
+            
+            console.log('bookList元素:', bookList);
+            console.log('emptyState元素:', emptyState);
+            
+            // 检查元素是否存在
+            if (!bookList || !emptyState) {
+                console.error('必要的DOM元素不存在');
+                console.error('bookList:', bookList);
+                console.error('emptyState:', emptyState);
+                console.error('document.readyState:', document.readyState);
+                return;
+            }
+            
+            // 过滤书籍
+            let filteredBooks = books;
+            
+            // 1. 按分类过滤
+            if (filter !== 'all') {
+                if (filter === 'recent') {
+                // 筛选近7天阅读过的书籍，并按最近阅读时间排序（从近到远）
+                const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                filteredBooks = [...filteredBooks]
+                    .filter(book => book.lastRead && book.lastRead >= sevenDaysAgo)
+                    .sort((a, b) => b.lastRead - a.lastRead);
+                } else {
+                    // 按格式过滤
+                    filteredBooks = filteredBooks.filter(book => book.format.toLowerCase() === filter);
+                }
+            }
+            
+            // 2. 按搜索关键词过滤
+            if (searchKeyword) {
+                const keyword = searchKeyword.toLowerCase();
+                filteredBooks = filteredBooks.filter(book => {
+                    const titleMatch = book.title.toLowerCase().includes(keyword);
+                    const authorMatch = book.author && book.author.toLowerCase().includes(keyword);
+                    return titleMatch || authorMatch;
+                });
+            }
+            
+            console.log('过滤后的书籍数量:', filteredBooks.length);
+            
+            // 清空列表
+            bookList.innerHTML = '';
+            
+            if (filteredBooks.length === 0) {
+                // 显示空状态
+                emptyState.classList.remove('hidden');
+                // 更新空状态文本
+                if (searchKeyword) {
+                    emptyState.querySelector('.empty-text').textContent = '没有找到匹配的书籍';
+                    emptyState.querySelector('.empty-subtext').textContent = '尝试使用其他关键词搜索';
+                } else {
+                    emptyState.querySelector('.empty-text').textContent = '还没有书籍';
+                    emptyState.querySelector('.empty-subtext').textContent = '点击右上角导入您的电子书';
+                }
+            } else {
+                // 隐藏空状态
+                emptyState.classList.add('hidden');
+                
+                // 渲染书籍
+                filteredBooks.forEach(book => {
+                    const bookItem = createBookItem(book);
+                    bookList.appendChild(bookItem);
+                });
+            }
+        }
+        
+        // 高亮匹配的文本
+        function highlightText(text, keyword) {
+            if (!keyword || !text) return text;
+            const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span style="background-color: #ffff00; padding: 0 2px; border-radius: 2px;">$1</span>');
+        }
+        
+        // 创建书籍项
+        function createBookItem(book) {
+            const bookItem = document.createElement('div');
+            bookItem.className = 'book-item';
+            
+            const cover = book.cover ? `<img src="${book.cover}" alt="${book.title}">` : '';
+            const highlightedTitle = highlightText(book.title, searchKeyword);
+            const highlightedAuthor = highlightText(book.author || '', searchKeyword);
+            
+            bookItem.innerHTML = `
+                <button class="delete-btn" onclick="event.stopPropagation(); deleteBook('${book.id}')">×</button>
+                <div class="book-cover" onclick="openBook('${book.id}')">
+                    ${cover}
+                </div>
+                <div class="book-title" onclick="openBook('${book.id}')">${highlightedTitle}</div>
+                <div class="book-meta" onclick="openBook('${book.id}')">${highlightedAuthor}</div>
+            `;
+            
+            return bookItem;
+        }
+        
+        // 删除书籍
+        function deleteBook(bookId) {
+            if (confirm('确定要删除这本书吗？')) {
+                books = books.filter(book => book.id !== bookId);
+                saveBooks();
+                renderBooks();
+            }
+        }
+        
+        // 打开书籍
+        function openBook(bookId) {
+            // 找到书籍
+            const book = books.find(b => b.id === bookId);
+            if (!book) return;
+            
+            // 更新最后阅读时间
+            book.lastRead = Date.now();
+            saveBooks();
+            
+            // 跳转到阅读器页面
+            localStorage.setItem('godReaderCurrentBook', JSON.stringify(book));
+            window.location.href = 'reader.html';
+        }
+        
+        // 处理文件上传
+        function handleFileUpload(file) {
+            const loading = document.getElementById('loading');
+            
+            // 检查元素是否存在
+            if (!loading) {
+                console.error('loading元素不存在');
+                alert('页面加载不完整，请刷新页面');
+                return;
+            }
+            
+            loading.classList.add('show');
+            
+            console.log('开始处理文件:', file.name);
+            console.log('文件类型:', file.type);
+            console.log('文件大小:', file.size);
+            
+            try {
+                // 文件大小检查 (限制 50MB)
+                const maxSize = 50 * 1024 * 1024; // 50MB
+                if (file.size > maxSize) {
+                    alert('文件大小超过限制 (最大 50MB)，请选择较小的文件');
+                    if (loading) {
+                        loading.classList.remove('show');
+                    }
+                    return;
+                }
+                
+                // 生成唯一ID
+                const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+                
+                // 提取文件名和格式
+                const fileName = file.name;
+                const format = fileName.split('.').pop().toLowerCase();
+                const title = fileName.substring(0, fileName.lastIndexOf('.'));
+                
+                console.log('文件格式:', format);
+                console.log('书籍标题:', title);
+                
+                // 支持的文件格式检查
+                const supportedFormats = ['epub', 'pdf', 'txt'];
+                if (!supportedFormats.includes(format)) {
+                    alert('不支持的文件格式，请选择 EPUB、PDF 或 TXT 文件');
+                    if (loading) {
+                        loading.classList.remove('show');
+                    }
+                    return;
+                }
+                
+                // 使用FileReader读取文件内容
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    console.log('文件读取成功');
+                    console.log('读取结果类型:', typeof e.target.result);
+                    console.log('读取结果长度:', e.target.result ? e.target.result.length : 'N/A');
+                    
+                    let fileData = e.target.result;
+                    let dataType = 'text';
+                    
+                    // 处理 ArrayBuffer 数据
+                    if (e.target.result instanceof ArrayBuffer) {
+                        console.log('处理 ArrayBuffer 数据');
+                        try {
+                            // 将 ArrayBuffer 转换为 Base64 字符串
+                            fileData = arrayBufferToBase64(e.target.result);
+                            dataType = 'base64';
+                            console.log('转换后的数据长度:', fileData.length);
+                            
+                            // 检查转换后的数据大小
+                            if (fileData.length > 5 * 1024 * 1024) { // 5MB
+                                alert('文件转换后过大，可能导致加载缓慢');
+                            }
+                        } catch (base64Error) {
+                            console.error('Base64 转换失败:', base64Error);
+                            alert('文件处理失败: ' + base64Error.message);
+                            if (loading) {
+                                loading.classList.remove('show');
+                            }
+                            return;
+                        }
+                    }
+                    
+                    // 创建书籍对象
+                    const book = {
+                        id,
+                        title,
+                        author: '',
+                        format,
+                        fileData: fileData, // 存储文件内容
+                        dataType: dataType, // 存储数据类型
+                        fileName: fileName,
+                        fileSize: file.size
+                    };
+                    
+                    console.log('书籍对象创建完成:', book);
+                    
+                    // 根据文件格式处理封面
+                    if (format === 'epub') {
+                        // 如果是EPUB文件，尝试提取封面
+                        extractEPUBCover(e.target.result, book).then(coverUrl => {
+                            if (coverUrl) {
+                                book.cover = coverUrl;
+                                console.log('封面提取成功:', coverUrl);
+                                saveBooks();
+                                renderBooks();
+                            }
+                        }).catch(error => {
+                            console.warn('封面提取失败:', error);
+                            // 封面提取失败不影响书籍添加
+                        });
+                    } else if (format === 'pdf' || format === 'txt') {
+                        // 如果是PDF或TXT文件，生成随机封面
+                        const coverUrl = generateRandomCover();
+                        book.cover = coverUrl;
+                        console.log('生成随机封面成功:', coverUrl);
+                    }
+                    
+                    try {
+                        // 添加到书籍列表
+                        books.unshift(book);
+                        saveBooks();
+                        
+                        console.log('书籍已保存到localStorage');
+                        
+                        // 重新渲染
+                        renderBooks();
+                        
+                        // 隐藏加载
+                        setTimeout(() => {
+                            if (loading) {
+                                loading.classList.remove('show');
+                            }
+                        }, 500);
+                    } catch (storageError) {
+                        console.error('存储失败:', storageError);
+                        alert('存储失败: ' + storageError.message);
+                        if (loading) {
+                            loading.classList.remove('show');
+                        }
+                    }
+                };
+                
+                reader.onerror = function(e) {
+                    console.error('文件读取失败:', e);
+                    console.error('错误详情:', e.target.error);
+                    let errorMessage = '文件读取失败';
+                    if (e.target.error) {
+                        errorMessage += ': ' + e.target.error.message;
+                    }
+                    alert(errorMessage);
+                    if (loading) {
+                        loading.classList.remove('show');
+                    }
+                };
+                
+                reader.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        console.log('文件读取进度:', percent + '%');
+                    }
+                };
+                
+                // 根据文件格式选择读取方式
+                if (format === 'txt') {
+                    console.log('使用readAsText读取文件');
+                    reader.readAsText(file);
+                } else {
+                    console.log('使用readAsArrayBuffer读取文件');
+                    reader.readAsArrayBuffer(file);
+                }
+                
+            } catch (error) {
+                console.error('文件上传失败:', error);
+                console.error('错误堆栈:', error.stack);
+                alert('文件上传失败: ' + error.message);
+                if (loading) {
+                    loading.classList.remove('show');
+                }
+            }
+        }
+        
+        // 绑定事件
+        function bindEvents() {
+            // 清除数据按钮
+            document.getElementById('clear-data-btn').addEventListener('click', function() {
+                if (confirm('确定要清除所有书籍数据吗？这将删除所有已导入的书籍。')) {
+                    localStorage.removeItem('godReaderBooks');
+                    localStorage.removeItem('godReaderCurrentBook');
+                    books = [];
+                    renderBooks();
+                    alert('数据已清除');
+                }
+            });
+            
+            // 打开弹窗按钮
+            document.getElementById('open-modal-btn').addEventListener('click', function() {
+                document.getElementById('import-modal').classList.add('show');
+            });
+            
+            // 关闭弹窗按钮
+            document.getElementById('close-modal-btn').addEventListener('click', function() {
+                document.getElementById('import-modal').classList.remove('show');
+            });
+            
+            // 取消按钮
+            document.getElementById('cancel-btn').addEventListener('click', function() {
+                document.getElementById('import-modal').classList.remove('show');
+            });
+            
+            // 点击弹窗外部关闭
+            document.getElementById('import-modal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
+            });
+            
+            // 文件输入变化
+            document.getElementById('file-input').addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    handleFileUpload(e.target.files[0]);
+                    // 重置文件输入，允许重复上传同一文件
+                    e.target.value = '';
+                    // 关闭弹窗
+                    document.getElementById('import-modal').classList.remove('show');
+                }
+            });
+            
+            // 上传区域点击
+            document.getElementById('upload-area').addEventListener('click', function() {
+                document.getElementById('file-input').click();
+            });
+            
+            // 拖拽功能
+            const uploadArea = document.getElementById('upload-area');
+            
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#409eff';
+                this.style.backgroundColor = '#f0f9ff';
+            });
+            
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#e0e0e0';
+                this.style.backgroundColor = '#fafafa';
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#e0e0e0';
+                this.style.backgroundColor = '#fafafa';
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files[0]);
+                    // 关闭弹窗
+                    document.getElementById('import-modal').classList.remove('show');
+                }
+            });
+            
+            // 分类标签点击
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // 移除所有active类
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    // 添加active类
+                    this.classList.add('active');
+                    // 渲染对应分类的书籍
+                    renderBooks(this.dataset.category);
+                });
+            });
+            
+            // 搜索功能
+            document.querySelector('.search-input').addEventListener('input', function(e) {
+                searchKeyword = e.target.value;
+                console.log('搜索关键词更新:', searchKeyword);
+                // 获取当前活跃的分类标签
+                const activeTab = document.querySelector('.tab.active');
+                const currentCategory = activeTab ? activeTab.dataset.category : 'all';
+                // 重新渲染书籍
+                renderBooks(currentCategory);
+            });
+        };
+        
+        // 等待DOM完全加载后再初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>

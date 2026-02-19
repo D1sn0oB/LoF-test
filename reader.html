@@ -1,0 +1,3440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阅读器 - God Reader</title>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            /* 全局隐藏滚动条 */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        /* 全局隐藏滚动条 */
+        *::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9ff;
+            color: #333;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .reader-container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+        
+        /* 侧边栏 */
+        .sidebar {
+            width: 300px;
+            background-color: white;
+            border-right: 1px solid #f0f0f0;
+            transition: transform 0.3s ease;
+            transform: translateX(-100%);
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 100;
+            overflow-y: auto;
+            border-radius: 0 16px 16px 0;
+            box-shadow: 2px 0 16px rgba(0, 0, 0, 0.05);
+        }
+        
+        .sidebar.open {
+            transform: translateX(0);
+        }
+        
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .close-sidebar {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: white;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+        }
+        
+        .close-sidebar:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        }
+        
+        .chapter-list {
+            padding: 12px 0;
+        }
+        
+        .chapter-item {
+            padding: 14px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            border-radius: 0 8px 8px 0;
+            margin: 0 12px;
+        }
+        
+        .chapter-item:hover {
+            background-color: #f8f9ff;
+            border-left-color: #409eff;
+            transform: translateX(4px);
+        }
+        
+        .chapter-item.active {
+            background-color: #e6f7ff;
+            border-left-color: #409eff;
+            color: #409eff;
+        }
+        
+        /* 主阅读区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.3s ease;
+        }
+        
+        /* 顶部控制栏 */
+        .top-bar {
+            background-color: white;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .left-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .back-btn {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        }
+        
+        .book-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-left: 10px;
+            color: #333;
+        }
+        
+        .right-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .control-btn {
+            background: white;
+            border: 1px solid #e0e0e0;
+            font-size: 16px;
+            cursor: pointer;
+            color: #666;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .control-btn:hover {
+            border-color: #409eff;
+            color: #409eff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+        }
+        
+        /* 阅读区域 */
+        .reading-area {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            background-color: #f8f9ff;
+            position: relative;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            /* 隐藏滚动条 */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        /* 隐藏滚动条 */
+        .reading-area::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .content-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            line-height: 1.8;
+            will-change: transform;
+            contain: content;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            /* 隐藏滚动条 */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        /* 隐藏滚动条 */
+        .content-container::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* 渲染区域优化 */
+        #epub-render-area {
+            width: 100%;
+            height: 100%;
+            will-change: transform;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            /* 隐藏滚动条 */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        /* 隐藏滚动条 */
+        #epub-render-area::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* 底部控制栏 */
+        .bottom-bar {
+            background-color: white;
+            border-top: 1px solid #f0f0f0;
+            padding: 8px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* 阅读设置面板 */
+        .settings-panel {
+            position: fixed;
+            bottom: -300px;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border-top: 1px solid #f0f0f0;
+            padding: 24px;
+            transition: bottom 0.3s ease;
+            z-index: 50;
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+        }
+        
+        .settings-panel.open {
+            bottom: 0;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .settings-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .close-settings {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+        }
+        
+        .close-settings:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        }
+        
+        .settings-group {
+            margin-bottom: 20px;
+        }
+        
+        .settings-label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 10px;
+            display: block;
+        }
+        
+        .font-size-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .font-size-btn {
+            background: none;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .font-size-value {
+            min-width: 40px;
+            text-align: center;
+        }
+        
+        .theme-options {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .theme-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .theme-option.light {
+            background-color: white;
+            border: 1px solid #e8e8e8;
+        }
+        
+        .theme-option.sepia {
+            background-color: #f5f0e6;
+        }
+        
+
+        
+        .theme-option.active {
+            border-color: #409eff;
+        }
+        
+        /* 遮罩层 */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: 50;
+            display: none;
+        }
+        
+        .overlay.show {
+            display: block;
+        }
+        
+        /* 导入弹窗 */
+        .import-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .import-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(64, 158, 255, 0.2);
+            transform: scale(0.8) translateY(20px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .import-modal.show .modal-content {
+            transform: scale(1) translateY(0);
+        }
+        
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+            position: relative;
+        }
+        
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .modal-subtitle {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 32px;
+            height: 32px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .close-btn:hover {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.3);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        /* PDF 文本层样式 */
+        .textLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            font-size: 12px;
+            line-height: 1.2;
+            pointer-events: auto;
+        }
+        
+        .textLayer > div {
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .reading-area {
+                padding: 20px;
+            }
+            
+            .content-container {
+                padding: 20px;
+            }
+            
+            .sidebar {
+                width: 280px;
+            }
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 20px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #409eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 错误提示 */
+        .error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 20px;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .error-icon {
+            font-size: 48px;
+            color: #ff4d4f;
+        }
+        
+        .error-message {
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .error-btn {
+            background-color: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .error-btn:hover {
+            background-color: #1890ff;
+        }
+        
+        /* PDF 阅读器样式 */
+        .pdf-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+        }
+        
+        .pdf-page {
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .pdf-page canvas {
+            display: block;
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">章节列表</div>
+            <button class="close-sidebar" id="close-sidebar">×</button>
+        </div>
+        <div class="chapter-list" id="chapter-list">
+            <!-- 章节列表将通过JavaScript动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 遮罩层 -->
+    <div class="overlay" id="overlay"></div>
+    
+    <!-- 主阅读区域 -->
+    <div class="reader-container">
+        <div class="main-content">
+            <!-- 顶部控制栏 -->
+            <div class="top-bar">
+                <div class="left-controls">
+                    <button class="back-btn" id="back-btn">←</button>
+                    <div class="book-title" id="book-title">书籍标题</div>
+                </div>
+                <div class="right-controls">
+                    <button class="control-btn" id="notes-btn">📝</button>
+                    <button class="control-btn" id="toc-btn">📑</button>
+                    <button class="control-btn" id="settings-btn">⚙️</button>
+                </div>
+            </div>
+            
+            <!-- 阅读区域 -->
+            <div class="reading-area" id="reading-area">
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <div>加载中...</div>
+                </div>
+                <div class="error" id="error" style="display: none;">
+                    <div class="error-icon">📚</div>
+                    <div class="error-message" id="error-message">无法加载书籍</div>
+                    <button class="error-btn" id="retry-btn">重试</button>
+                </div>
+                <div class="content-container" id="content-container" style="display: none;">
+                    <!-- 书籍内容将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            
+            <!-- 底部控制栏 -->
+            <div class="bottom-bar">
+            </div>
+        </div>
+    </div>
+    
+    <!-- 阅读设置面板 -->
+    <div class="settings-panel" id="settings-panel">
+        <div class="settings-header">
+            <div class="settings-title">阅读设置</div>
+            <button class="close-settings" id="close-settings">×</button>
+        </div>
+
+        <div class="settings-group">
+            <label class="settings-label">主题</label>
+            <div class="theme-options">
+                <div class="theme-option light active" data-theme="light"></div>
+                <div class="theme-option sepia" data-theme="sepia"></div>
+            </div>
+        </div>
+        
+        <div class="settings-group">
+            <label class="settings-label">翻译功能</label>
+            <button id="translate-btn" style="background: linear-gradient(135deg, #409eff 0%, #ff80ab 100%); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);">
+                打开翻译工具
+            </button>
+        </div>
+    </div>
+    
+    <!-- 文本选择菜单 -->
+    <div class="selection-menu" id="selection-menu" style="position: fixed; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); z-index: 1000; display: none; padding: 4px 0;">
+        <div class="menu-item" id="menu-copy" style="padding: 8px 16px; cursor: pointer; font-size: 14px; transition: background-color 0.2s ease;">复制</div>
+        <div class="menu-item" id="menu-add-note" style="padding: 8px 16px; cursor: pointer; font-size: 14px; transition: background-color 0.2s ease;">添加批注</div>
+    </div>
+    
+    <!-- 批注弹窗 -->
+    <div class="import-modal" id="note-popup">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">添加批注</h2>
+                <p class="modal-subtitle">选择荧光笔颜色并添加批注内容</p>
+                <button class="close-btn" id="cancel-note">×</button>
+            </div>
+            <div style="margin-bottom: 24px;">
+                <label class="settings-label" style="margin-bottom: 12px; display: block;">荧光笔颜色</label>
+                <div class="highlighter-colors" style="display: flex; gap: 12px; margin-bottom: 20px;">
+                    <div class="color-option" data-color="#ffff00" style="width: 40px; height: 40px; border-radius: 50%; background-color: #ffff00; border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;"></div>
+                    <div class="color-option" data-color="#ff6b6b" style="width: 40px; height: 40px; border-radius: 50%; background-color: #ff6b6b; border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;"></div>
+                    <div class="color-option" data-color="#4ecdc4" style="width: 40px; height: 40px; border-radius: 50%; background-color: #4ecdc4; border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;"></div>
+                    <div class="color-option" data-color="#45b7d1" style="width: 40px; height: 40px; border-radius: 50%; background-color: #45b7d1; border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;"></div>
+                    <div class="color-option" data-color="#96ceb4" style="width: 40px; height: 40px; border-radius: 50%; background-color: #96ceb4; border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;"></div>
+                </div>
+                <label class="settings-label" style="margin-bottom: 12px; display: block;">批注内容</label>
+                <textarea id="note-content" style="width: 100%; min-height: 120px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; resize: vertical; font-family: inherit; font-size: 14px; line-height: 1.5; transition: all 0.3s ease;"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancel-note-btn">取消</button>
+                <button class="btn btn-primary" id="save-note">保存批注</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 批注管理面板 -->
+    <div class="sidebar" id="notes-sidebar" style="width: 300px; background-color: white; border-right: 1px solid #f0f0f0; transition: transform 0.3s ease; transform: translateX(-100%); position: fixed; left: 0; top: 0; bottom: 0; z-index: 150; overflow-y: auto; border-radius: 0 16px 16px 0; box-shadow: 2px 0 16px rgba(0, 0, 0, 0.05);">
+        <div class="sidebar-header">
+            <div class="sidebar-title">我的批注</div>
+            <button class="close-sidebar" id="close-notes-sidebar">×</button>
+        </div>
+        <div class="notes-list" id="notes-list" style="padding: 12px 0;">
+            <!-- 批注列表将通过JavaScript动态生成 -->
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let currentBook = null;
+        let currentChapter = 0;
+        let chapters = [];
+        let currentTheme = 'light';
+        let epubBook = null;
+        let epubRenderer = null;
+        let rendererInitialized = false; // 渲染器初始化状态
+        let pdfDoc = null;
+        let pdfPageNum = 1;
+        let pdfScale = 1.5;
+        let pdfRendering = false;
+        let annotations = []; // 批注数据
+        let selectedColor = '#ffff00'; // 默认荧光笔颜色
+        let contentCheckInterval = null; // 内容检查定时器
+        let selectedText = ''; // 选中的文本
+        let selectionRange = null; // 选中文本的范围
+        
+        // Base64 转 ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+        
+        // 提取 EPUB 封面
+        async function extractEPUBCover(arrayBuffer) {
+            try {
+                console.log('开始提取EPUB封面...');
+                
+                // 创建 EPUB 对象
+                const epubBook = ePub(arrayBuffer);
+                
+                // 等待 EPUB 加载完成
+                await epubBook.ready;
+                
+                // 尝试获取封面
+                let coverUrl = await epubBook.coverUrl();
+                
+                if (coverUrl) {
+                    console.log('封面URL获取成功:', coverUrl);
+                    
+                    // 将封面URL转换为Base64以便显示
+                    const response = await fetch(coverUrl);
+                    const blob = await response.blob();
+                    
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } else {
+                    console.log('标准封面获取失败，尝试从第一章提取');
+                    // 尝试从第一章提取封面
+                    try {
+                        // 获取目录
+                        const spine = await epubBook.loaded.spine;
+                        
+                        // 检查是否有章节
+                        if (spine && (Array.isArray(spine) || (spine.items && Array.isArray(spine.items)))) {
+                            let spineItems = Array.isArray(spine) ? spine : spine.items;
+                            
+                            if (spineItems.length > 0) {
+                                // 获取第一个章节
+                                const firstChapter = spineItems[0];
+                                const chapterItem = firstChapter.item || firstChapter;
+                                const chapterHref = chapterItem.href || chapterItem.src || chapterItem.url;
+                                
+                                if (chapterHref) {
+                                    console.log('尝试加载第一章内容:', chapterHref);
+                                    // 加载第一章内容
+                                    const documentObj = await epubBook.load(chapterHref);
+                                    
+                                    if (documentObj && (documentObj instanceof XMLDocument || documentObj instanceof HTMLDocument)) {
+                                        // 查找第一章中的图片
+                                        let images = [];
+                                        if (documentObj.body) {
+                                            images = Array.from(documentObj.body.querySelectorAll('img'));
+                                        } else if (documentObj.documentElement) {
+                                            images = Array.from(documentObj.documentElement.querySelectorAll('img'));
+                                        }
+                                        
+                                        if (images.length > 0) {
+                                            console.log('从第一章找到图片:', images.length, '张');
+                                            // 使用第一张图片作为封面
+                                            const firstImage = images[0];
+                                            let imageSrc = firstImage.src;
+                                            
+                                            // 如果是相对路径，尝试构建完整路径
+                                            if (!imageSrc.startsWith('http')) {
+                                                // 尝试从EPUB中获取完整路径
+                                                try {
+                                                    const imageResponse = await fetch(imageSrc);
+                                                    const imageBlob = await imageResponse.blob();
+                                                    
+                                                    return new Promise((resolve, reject) => {
+                                                        const reader = new FileReader();
+                                                        reader.onloadend = () => resolve(reader.result);
+                                                        reader.onerror = reject;
+                                                        reader.readAsDataURL(imageBlob);
+                                                    });
+                                                } catch (imageError) {
+                                                    console.warn('无法加载图片:', imageError);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (chapterError) {
+                        console.warn('从第一章提取封面失败:', chapterError);
+                    }
+                    
+                    console.log('EPUB文件没有找到封面');
+                    return null;
+                }
+            } catch (error) {
+                console.error('提取EPUB封面失败:', error);
+                return null;
+            }
+        }
+        
+        // 全局变量
+        let isSelectingText = false;
+        let selectionMenuTimeout = null;
+        
+        // 初始化
+        function init() {
+            // 加载当前书籍
+            loadCurrentBook();
+            
+            // 加载批注
+            loadAnnotations();
+            
+            // 应用设置，确保文本选择菜单的样式被正确设置
+            applySettings();
+            
+            // 显示批注高亮效果
+            highlightAnnotations();
+            
+            // 绑定事件
+            bindEvents();
+            
+            // 定期检查是否有新的iframe（EPUB内容）被添加
+            setInterval(function() {
+                checkForEPUBIframe();
+            }, 1000);
+        }
+        
+        // 检查是否有EPUB iframe被添加
+        function checkForEPUBIframe() {
+            // 查找所有iframe
+            const iframes = document.querySelectorAll('iframe');
+            iframes.forEach(function(iframe) {
+                // 检查iframe是否已经添加了事件监听器
+                if (!iframe.hasSelectionListener) {
+                    console.log('找到EPUB iframe，添加事件监听器');
+                    try {
+                        // 尝试访问iframe的内容
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc) {
+                            // 添加鼠标按下事件监听器 - 标记开始选择文本
+                            iframeDoc.addEventListener('mousedown', function(e) {
+                                isSelectingText = true;
+                                console.log('iframe鼠标按下，开始选择文本');
+                            });
+                            
+                            // 添加鼠标释放事件监听器 - 只在鼠标释放时检查，确保菜单只在用户松开鼠标且选择了文本的情况下显示
+                            iframeDoc.addEventListener('mouseup', function(e) {
+                                if (isSelectingText) {
+                                    console.log('iframe鼠标释放，检查文本选择');
+                                    // 延迟一下，确保选择已经完成
+                                    setTimeout(function() {
+                                        handleTextSelection();
+                                        // 延迟更长时间重置isSelectingText，确保点击事件处理完成
+                                        setTimeout(function() {
+                                            isSelectingText = false;
+                                        }, 200);
+                                    }, 50);
+                                }
+                            });
+                            
+                            // 移除 selectionchange 事件监听器，避免在选择过程中多次触发
+                            // iframeDoc.addEventListener('selectionchange', function(e) {
+                            //     console.log('iframe文本选择变化');
+                            //     handleTextSelection();
+                            // });
+                            
+                            // 标记iframe已经添加了事件监听器
+                            iframe.hasSelectionListener = true;
+                        }
+                    } catch (error) {
+                        console.error('无法访问iframe内容:', error);
+                    }
+                }
+            });
+        }
+        
+        // 清理函数
+        function cleanup() {
+            // 清理任何需要清理的资源
+            console.log('页面清理完成');
+        }
+        
+        // 页面卸载时清理
+        window.addEventListener('unload', cleanup);
+        window.addEventListener('beforeunload', cleanup);
+        
+        // 加载当前书籍
+        function loadCurrentBook() {
+            const bookData = localStorage.getItem('godReaderCurrentBook');
+            if (!bookData) {
+                showError('未找到书籍信息，请返回重新选择');
+                return;
+            }
+            
+            currentBook = JSON.parse(bookData);
+            document.getElementById('book-title').textContent = currentBook.title;
+            
+            // 根据文件格式加载
+            if (currentBook.format === 'txt') {
+                // TXT文件直接加载内容
+                loadBookContent();
+            } else if (currentBook.format === 'pdf') {
+                // PDF文件加载
+                loadPDFFile();
+            } else {
+                // EPUB文件使用EPUB.js加载
+                loadEPUBFile();
+            }
+        }
+        
+        // 加载 EPUB 文件
+        function loadEPUBFile() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            
+            loading.style.display = 'flex';
+            error.style.display = 'none';
+            
+            // 重置 EPUB 相关变量
+            epubBook = null;
+            epubRenderer = null;
+            chapters = [];
+            
+            try {
+                // 检查是否有 EPUB 文件数据
+                if (!currentBook.fileData) {
+                    showError('未找到 EPUB 文件数据，请返回重新选择书籍');
+                    console.error('缺少文件数据:', currentBook);
+                    return;
+                }
+                
+                console.log('开始加载EPUB文件:', currentBook.title);
+                console.log('文件数据类型:', typeof currentBook.fileData);
+                console.log('文件数据长度:', currentBook.fileData ? currentBook.fileData.length : 'N/A');
+                console.log('数据类型标记:', currentBook.dataType);
+                
+                // 处理文件数据格式
+                let epubData = currentBook.fileData;
+                if (currentBook.dataType === 'base64') {
+                    console.log('处理 Base64 格式数据');
+                    try {
+                        // 优化 Base64 转 ArrayBuffer 的性能
+                        epubData = base64ToArrayBuffer(currentBook.fileData);
+                        console.log('Base64 转 ArrayBuffer 成功，转换后长度:', epubData.byteLength);
+                    } catch (base64Error) {
+                        console.error('Base64 转换失败:', base64Error);
+                        showError('EPUB 文件数据格式错误: ' + base64Error.message);
+                        return;
+                    }
+                } else if (typeof currentBook.fileData === 'object' && currentBook.fileData !== null) {
+                    console.log('检测到可能的旧格式数据，尝试处理');
+                    showError('EPUB 文件数据格式过时，请重新导入书籍');
+                    return;
+                } else if (typeof currentBook.fileData === 'string' && currentBook.dataType !== 'base64') {
+                    console.log('检测到可能的文本格式数据');
+                    showError('EPUB 文件数据格式错误，请重新导入书籍');
+                    return;
+                }
+                
+                // 记录开始时间，用于性能评估
+                const startTime = performance.now();
+                
+                // 初始化 EPUB 书籍
+                try {
+                    // 从文件数据加载（ArrayBuffer）
+                    epubBook = ePub(epubData);
+                    console.log('EPUB对象创建成功');
+                    
+                    // 并行处理：封面提取与EPUB解析
+                    const coverPromise = extractEPUBCover(epubData);
+                    
+                    // 解析 EPUB 书籍
+                    Promise.all([
+                        epubBook.loaded.metadata,
+                        epubBook.loaded.spine,
+                        coverPromise
+                    ]).then(function(results) {
+                        const metadata = results[0];
+                        const spine = results[1];
+                        const coverUrl = results[2];
+                        
+                        console.log('元数据加载成功:', metadata);
+                        // 更新书籍标题
+                        if (metadata.title) {
+                            document.getElementById('book-title').textContent = metadata.title;
+                        }
+                        
+                        // 处理封面
+                        if (coverUrl) {
+                            console.log('封面提取成功，设置封面');
+                            // 保存封面到currentBook对象
+                            currentBook.cover = coverUrl;
+                        }
+                        
+                        console.log('目录加载成功，spine类型:', typeof spine);
+                        console.log('spine值:', spine);
+                        
+                        // 处理不同类型的 spine 结构
+                        let spineItems = [];
+                        
+                        if (Array.isArray(spine)) {
+                            // 标准数组格式
+                            spineItems = spine;
+                        } else if (spine && typeof spine === 'object') {
+                            // 可能是对象格式，尝试获取 items 属性
+                            if (spine.items && Array.isArray(spine.items)) {
+                                spineItems = spine.items;
+                                console.log('使用 spine.items 作为章节列表');
+                            } else if (spine.spine && Array.isArray(spine.spine)) {
+                                spineItems = spine.spine;
+                                console.log('使用 spine.spine 作为章节列表');
+                            } else if (spine.length !== undefined) {
+                                // 类似数组的对象
+                                console.log('处理类似数组的对象');
+                                for (let i = 0; i < spine.length; i++) {
+                                    if (spine[i]) {
+                                        spineItems.push(spine[i]);
+                                    }
+                                }
+                            } else {
+                                console.error('无法识别的 spine 结构:', spine);
+                                showError('EPUB 文件结构错误，无法解析章节信息');
+                                return;
+                            }
+                        } else {
+                            console.error('无效的 spine 数据:', spine);
+                            showError('EPUB 文件结构错误，无法解析章节信息');
+                            return;
+                        }
+                        
+                        console.log('章节数量:', spineItems.length);
+                        
+                        // 检查章节数量
+                        if (spineItems.length === 0) {
+                            showError('EPUB 文件没有找到章节内容');
+                            return;
+                        }
+                        
+                        // 生成章节列表
+                        chapters = [];
+                        spineItems.forEach(function(item, index) {
+                            console.log('章节项:', index, item);
+                            
+                            // 处理不同格式的章节项
+                            let chapterItem = item;
+                            if (item.item) {
+                                // 可能是包装格式
+                                chapterItem = item.item;
+                                console.log('使用 item.item 作为章节项');
+                            }
+                            
+                            // 尝试获取章节标题
+                            let chapterTitle = chapterItem.id;
+                            if (!chapterTitle && chapterItem.properties) {
+                                chapterTitle = chapterItem.properties.title;
+                            }
+                            if (!chapterTitle && chapterItem.title) {
+                                chapterTitle = chapterItem.title;
+                            }
+                            if (!chapterTitle) {
+                                chapterTitle = `第${index + 1}章`;
+                            }
+                            
+                            // 尝试获取 href
+                            let href = chapterItem.href;
+                            if (!href && chapterItem.src) {
+                                href = chapterItem.src;
+                            }
+                            if (!href && chapterItem.url) {
+                                href = chapterItem.url;
+                            }
+                            
+                            // 确保 href 存在
+                            if (!href) {
+                                console.warn('章节项缺少 href:', chapterItem);
+                                chapterTitle += ' (无内容)';
+                            }
+                            
+                            chapters.push({
+                                id: index,
+                                title: chapterTitle,
+                                href: href || ''
+                            });
+                        });
+                        
+                        // 渲染章节列表
+                        renderChapterList();
+                        
+                        // 直接使用 EPUB.js 标准方式加载内容
+                        loadEPUBContentStandard(coverUrl, 0);
+                        
+                        // 记录结束时间并计算解析时间
+                        const endTime = performance.now();
+                        console.log(`EPUB 解析时间: ${(endTime - startTime).toFixed(2)}ms`);
+                    }).catch(function(error) {
+                        console.error('EPUB 解析错误:', error);
+                        console.error('错误详情:', error.stack);
+                        let errorMessage = '解析 EPUB 文件失败';
+                        
+                        // 根据错误类型提供更详细的错误信息
+                        if (error.message && error.message.includes('unzip')) {
+                            errorMessage += '，文件可能损坏或不是有效的 EPUB 文件';
+                        } else if (error.message && error.message.includes('parse')) {
+                            errorMessage += '，文件格式错误';
+                        } else if (error.message && error.message.includes('network')) {
+                            errorMessage += '，网络错误，请检查网络连接';
+                        } else if (error.message) {
+                            errorMessage += ': ' + error.message;
+                        }
+                        
+                        showError(errorMessage);
+                    });
+                } catch (initError) {
+                    console.error('EPUB初始化失败:', initError);
+                    let errorMessage = 'EPUB文件初始化失败';
+                    if (initError.message) {
+                        errorMessage += ': ' + initError.message;
+                    }
+                    showError(errorMessage);
+                    return;
+                }
+            } catch (error) {
+                console.error('EPUB 加载错误:', error);
+                console.error('错误堆栈:', error.stack);
+                let errorMessage = '加载 EPUB 文件失败';
+                
+                if (error.name === 'TypeError') {
+                    errorMessage += '，文件类型错误';
+                } else if (error.name === 'SecurityError') {
+                    errorMessage += '，安全限制，无法访问文件';
+                } else if (error.name === 'RangeError') {
+                    errorMessage += '，文件数据超出处理范围';
+                } else if (error.message) {
+                    errorMessage += ': ' + error.message;
+                }
+                
+                showError(errorMessage);
+            }
+        }
+        
+        // 简化的 EPUB 内容加载方法
+        function loadEPUBContentSimple(coverUrl) {
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            try {
+                // 清空容器
+                contentContainer.innerHTML = '';
+                
+                // 确保容器有正确的尺寸
+                contentContainer.style.width = '100%';
+                contentContainer.style.height = '100%';
+                contentContainer.style.minHeight = '600px';
+                contentContainer.style.position = 'relative';
+                contentContainer.style.overflow = 'auto';
+                contentContainer.style.padding = '20px';
+                contentContainer.style.backgroundColor = 'white';
+                contentContainer.style.borderRadius = '8px';
+                contentContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+                
+                console.log('开始使用简化方法加载EPUB内容');
+                
+                // 不再默认显示封面，直接显示书籍内容
+                console.log('直接显示书籍内容，不添加封面');
+
+                // 创建一个简单的渲染区域
+                const renderArea = document.createElement('div');
+                renderArea.id = 'epub-render-area';
+                renderArea.style.width = '100%';
+                renderArea.style.height = '100%';
+                contentContainer.appendChild(renderArea);
+                
+                // 使用 EPUB.js 的渲染器，配置为滚动翻页模式
+                try {
+                    // 配置为滚动翻页模式
+                    epubRenderer = epubBook.renderTo(renderArea, {
+                        width: '100%',
+                        height: '100%',
+                        manager: 'continuous',
+                        flow: 'scrolled-continuous',
+                        spread: 'none',
+                        stylesheet: true,
+                        script: false // 禁用脚本以提高性能
+                    });
+                    
+                    console.log('EPUB.js renderTo 调用完成，渲染器:', epubRenderer);
+                    
+                    // 立即显示内容容器
+                    contentContainer.style.display = 'block';
+                    
+                    // 监听渲染完成事件
+                    if (epubRenderer && typeof epubRenderer.on === 'function') {
+                        epubRenderer.on('rendered', function() {
+                            console.log('EPUB内容渲染完成');
+                            loading.style.display = 'none';
+                            applySettings();
+                        });
+                        
+                        // 监听错误事件
+                        epubRenderer.on('error', function(error) {
+                            console.error('EPUB渲染错误:', error);
+                            loading.style.display = 'none';
+                            showError('EPUB内容渲染失败: ' + error.message);
+                        });
+                        
+
+                        
+                        // 添加超时处理，确保加载动画不会一直显示
+                        setTimeout(() => {
+                            if (loading.style.display !== 'none') {
+                                console.log('渲染事件未触发，手动隐藏加载动画');
+                                loading.style.display = 'none';
+                                // 检查是否有内容
+                                if (renderArea.innerHTML.trim() === '') {
+                                    console.error('渲染区域为空，尝试直接加载章节');
+                                    // 清空容器并直接加载章节
+                                    contentContainer.innerHTML = '';
+                                    loadFirstChapterDirectly();
+                                } else {
+                                    console.log('渲染区域有内容，应用设置');
+                                    applySettings();
+                                }
+                            }
+                        }, 3000);
+                    } else {
+                        console.error('渲染器对象无效或缺少on方法:', epubRenderer);
+                        // 直接完成加载
+                        loading.style.display = 'none';
+                        contentContainer.style.display = 'block';
+                        // 检查是否有内容
+                        if (renderArea.innerHTML.trim() === '') {
+                            console.error('渲染区域为空，尝试直接加载章节');
+                            loadFirstChapterDirectly();
+                        }
+                    }
+                } catch (renderError) {
+                    console.error('创建渲染器失败:', renderError);
+                    // 渲染器创建失败，尝试直接加载章节
+                    loading.style.display = 'none';
+                    contentContainer.style.display = 'block';
+                    loadFirstChapterDirectly();
+                }
+                
+            } catch (error) {
+                console.error('简化方法加载EPUB内容失败:', error);
+                loading.style.display = 'none';
+                showError('EPUB内容加载失败: ' + error.message);
+            }
+        }
+        
+        // 使用 EPUB.js 标准方式加载内容
+        function loadEPUBContentStandard(coverUrl, targetChapterIndex) {
+            // 如果指定了目标章节索引，使用它
+            const chapterIndex = targetChapterIndex !== undefined ? targetChapterIndex : currentChapter;
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            try {
+                // 清空容器
+                contentContainer.innerHTML = '';
+                
+                // 确保容器有正确的尺寸
+                contentContainer.style.width = '100%';
+                contentContainer.style.height = '100%';
+                contentContainer.style.minHeight = '600px';
+                contentContainer.style.position = 'relative';
+                contentContainer.style.overflow = 'auto';
+                contentContainer.style.padding = '20px';
+                contentContainer.style.backgroundColor = 'white';
+                contentContainer.style.borderRadius = '8px';
+                contentContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+                
+                console.log('开始使用标准方式加载EPUB内容');
+                
+                // 创建渲染区域
+                const renderArea = document.createElement('div');
+                renderArea.id = 'epub-render-area';
+                renderArea.style.width = '100%';
+                renderArea.style.height = '100%';
+                contentContainer.appendChild(renderArea);
+                
+                // 立即显示内容容器
+                contentContainer.style.display = 'block';
+                
+                // 使用 EPUB.js 标准渲染器
+                try {
+                    // 优化配置，提高滚动性能
+                    epubRenderer = epubBook.renderTo(renderArea, {
+                        width: '100%',
+                        height: '100%',
+                        manager: 'continuous',
+                        flow: 'scrolled-continuous',
+                        spread: 'none',
+                        stylesheet: true,
+                        script: false,
+                        // 确保启用连续滚动
+                        continuous: true,
+                        // 启用章节之间的连续滚动
+                        seamless: true,
+                        // 性能优化
+                        timeout: 3000,
+                        // 预加载设置
+                        preload: true,
+                        // 减少重绘
+                        ignoreClass: 'ignore',
+                        // 平滑滚动
+                        smoothScroll: true,
+                        // 减少布局计算
+                        layout: false,
+                        // 禁用不必要的动画
+                        animations: false,
+                        // 减少内存使用
+                        memoryLimit: 100,
+                        // 禁用自动调整大小
+                        autoResize: false,
+                        // 禁用不必要的事件
+                        events: false
+                    });
+                    
+                    console.log('EPUB.js 标准渲染器创建成功:', epubRenderer);
+                    
+                    // 加载整本书，启用连续滚动
+                    console.log('加载整本书，启用连续滚动');
+                    epubRenderer.display().then(function() {
+                        console.log('整本书显示成功');
+                        loading.style.display = 'none';
+                        applySettings();
+                    }).catch(function(error) {
+                        console.error('整本书显示失败:', error);
+                        loading.style.display = 'none';
+                        // 尝试直接加载章节
+                        contentContainer.innerHTML = '';
+                        loadFirstChapterDirectly();
+                    });
+                    
+
+                } catch (renderError) {
+                    console.error('创建标准渲染器失败:', renderError);
+                    loading.style.display = 'none';
+                    // 尝试直接加载章节
+                    contentContainer.innerHTML = '';
+                    loadFirstChapterDirectly();
+                }
+                
+            } catch (error) {
+                console.error('标准方法加载EPUB内容失败:', error);
+                loading.style.display = 'none';
+                showError('EPUB内容加载失败: ' + error.message);
+            }
+        }
+        
+        // 直接加载第一个章节
+        function loadFirstChapterDirectly() {
+            const contentContainer = document.getElementById('content-container');
+            const loading = document.getElementById('loading');
+            
+            try {
+                console.log('尝试直接加载第一个章节');
+                
+                if (chapters.length > 0 && chapters[0].href) {
+                    console.log('加载第一个章节:', chapters[0].title, chapters[0].href);
+                    
+                    // 隐藏加载动画
+                    loading.style.display = 'none';
+                    contentContainer.style.display = 'block';
+                    
+                    // 清空容器
+                    contentContainer.innerHTML = '';
+                    
+                    // 创建章节内容区域
+                    const chapterContent = document.createElement('div');
+                    chapterContent.style.padding = '20px';
+                    chapterContent.style.lineHeight = '1.8';
+                    chapterContent.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+                    
+                    // 显示加载中信息
+                    chapterContent.innerHTML = '<div style="text-align: center; padding: 40px;">正在加载章节内容...</div>';
+                    contentContainer.appendChild(chapterContent);
+                    
+                    // 尝试获取章节内容
+                    epubBook.load(chapters[0].href).then(function(documentObj) {
+                        console.log('章节内容加载成功，返回类型:', typeof documentObj, '构造函数:', documentObj.constructor.name);
+                        
+                        // 正确处理返回的文档对象
+                        let contentHtml = '';
+                        if (documentObj && (documentObj instanceof XMLDocument || documentObj instanceof HTMLDocument)) {
+                            // 提取文档的body内容
+                            if (documentObj.body) {
+                                // 克隆body元素以避免修改原始文档
+                                const bodyClone = documentObj.body.cloneNode(true);
+                                
+                                // 移除所有可能导致资源加载的元素
+                                const elementsToRemove = bodyClone.querySelectorAll('img, link, script, iframe, embed, object');
+                                elementsToRemove.forEach(el => el.remove());
+                                
+                                // 移除所有可能的资源引用属性
+                                const elementsWithSrc = bodyClone.querySelectorAll('[src], [href], [data-src], [background], [srcset]');
+                                elementsWithSrc.forEach(el => {
+                                    el.removeAttribute('src');
+                                    el.removeAttribute('href');
+                                    el.removeAttribute('data-src');
+                                    el.removeAttribute('background');
+                                    el.removeAttribute('srcset');
+                                });
+                                
+                                // 清理内联样式中的资源引用
+                                const elementsWithStyle = bodyClone.querySelectorAll('[style]');
+                                elementsWithStyle.forEach(el => {
+                                    let style = el.getAttribute('style');
+                                    if (style) {
+                                        // 移除包含 url() 的样式
+                                        style = style.replace(/url\([^)]*\)/g, '');
+                                        el.setAttribute('style', style);
+                                    }
+                                });
+                                
+                                // 获取处理后的HTML
+                                contentHtml = bodyClone.innerHTML;
+                            } else if (documentObj.documentElement) {
+                                // 对于XML文档，尝试获取所有内容
+                                contentHtml = documentObj.documentElement.outerHTML;
+                            }
+                        } else if (typeof documentObj === 'string') {
+                            // 如果返回的是字符串，直接使用
+                            contentHtml = documentObj;
+                        } else {
+                            // 其他类型，尝试转换为字符串
+                            contentHtml = String(documentObj);
+                        }
+                        
+                        // 检查提取的内容
+                        if (contentHtml.trim() === '') {
+                            contentHtml = '<div style="text-align: center; padding: 40px; color: #999;">章节内容为空</div>';
+                        }
+                        
+                        console.log('提取的章节内容长度:', contentHtml.length);
+                        chapterContent.innerHTML = contentHtml;
+                        applySettings();
+                        
+                        // 恢复批注和高亮效果
+                        loadAnnotations();
+                        highlightAnnotations();
+                    }).catch(function(error) {
+                        console.error('章节内容加载失败:', error);
+                        chapterContent.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">章节内容加载失败，请重试</div>';
+                    });
+                } else {
+                    console.error('没有找到有效的章节');
+                    loading.style.display = 'none';
+                    contentContainer.style.display = 'block';
+                    contentContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">没有找到章节内容</div>';
+                }
+                
+            } catch (error) {
+                console.error('直接加载章节失败:', error);
+                loading.style.display = 'none';
+                contentContainer.style.display = 'block';
+                contentContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">加载失败，请重试</div>';
+            }
+        }
+        
+        // 加载 PDF 文件
+        function loadPDFFile() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            
+            loading.style.display = 'flex';
+            error.style.display = 'none';
+            
+            try {
+                // 检查是否有 PDF 文件数据
+                if (!currentBook.fileData) {
+                    showError('未找到 PDF 文件数据，请返回重新选择书籍');
+                    console.error('缺少文件数据:', currentBook);
+                    return;
+                }
+                
+                console.log('开始加载PDF文件:', currentBook.title);
+                
+                // 设置 PDF.js worker
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+                
+                // 处理文件数据格式
+                let pdfData = currentBook.fileData;
+                if (currentBook.dataType === 'base64') {
+                    console.log('处理 Base64 格式数据');
+                    try {
+                        pdfData = base64ToArrayBuffer(currentBook.fileData);
+                        console.log('Base64 转 ArrayBuffer 成功，转换后长度:', pdfData.byteLength);
+                    } catch (base64Error) {
+                        console.error('Base64 转换失败:', base64Error);
+                        showError('PDF 文件数据格式错误: ' + base64Error.message);
+                        return;
+                    }
+                }
+                
+                // 加载 PDF 文档
+                const loadingTask = pdfjsLib.getDocument(pdfData);
+                loadingTask.promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    pdfPageNum = 1;
+                    
+                    console.log('PDF 加载成功，总页数:', pdf.numPages);
+                    
+                    // 生成章节列表（每一页作为一个章节）
+                    chapters = [];
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        chapters.push({
+                            id: i,
+                            title: `第 ${i} 页`,
+                            href: i.toString()
+                        });
+                    }
+                    
+                    // 渲染章节列表
+                    renderChapterList();
+                    
+                    // 加载第一页
+                    loadPDFPage(1);
+                }).catch(function(error) {
+                    console.error('PDF 加载失败:', error);
+                    showError('PDF 文件加载失败: ' + error.message);
+                });
+            } catch (error) {
+                console.error('PDF 加载错误:', error);
+                showError('PDF 文件加载失败: ' + error.message);
+            }
+        }
+        
+        // 加载 PDF 页面
+        function loadPDFPage(pageNum) {
+            if (!pdfDoc || pdfRendering) return;
+            
+            pdfRendering = true;
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            loading.style.display = 'flex';
+            contentContainer.style.display = 'none';
+            
+            pdfDoc.getPage(pageNum).then(function(page) {
+                console.log('加载 PDF 页面:', pageNum);
+                
+                const viewport = page.getViewport({ scale: pdfScale });
+                
+                // 创建 canvas
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                // 渲染页面
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+                
+                renderTask.promise.then(function() {
+                    // 清空容器并显示页面
+                    contentContainer.innerHTML = '';
+                    contentContainer.style.display = 'block';
+                    loading.style.display = 'none';
+                    
+                    const pageContainer = document.createElement('div');
+                    pageContainer.className = 'pdf-page';
+                    pageContainer.style.position = 'relative';
+                    
+                    // 添加 canvas
+                    canvas.style.position = 'absolute';
+                    canvas.style.top = '0';
+                    canvas.style.left = '0';
+                    pageContainer.appendChild(canvas);
+                    
+                    // 创建文本层
+                    const textLayerDiv = document.createElement('div');
+                    textLayerDiv.className = 'textLayer';
+                    textLayerDiv.style.position = 'absolute';
+                    textLayerDiv.style.top = '0';
+                    textLayerDiv.style.left = '0';
+                    textLayerDiv.style.right = '0';
+                    textLayerDiv.style.bottom = '0';
+                    textLayerDiv.style.pointerEvents = 'auto';
+                    textLayerDiv.style.opacity = '0';
+                    pageContainer.appendChild(textLayerDiv);
+                    
+                    // 设置文本层大小
+                    const textLayer = new pdfjsLib.renderTextLayer({
+                        textContent: null,
+                        container: textLayerDiv,
+                        viewport: viewport.clone({}),
+                        textDivs: [],
+                        renderInteractiveForms: false
+                    });
+                    
+                    // 加载文本内容
+                    page.getTextContent().then(function(textContent) {
+                        textLayer.setTextContent(textContent);
+                        textLayer.render();
+                        
+                        // 确保文本层能够响应鼠标事件
+                        textLayerDiv.style.pointerEvents = 'auto';
+                    });
+                    
+                    contentContainer.appendChild(pageContainer);
+                    
+                    // 应用设置
+                    applySettings();
+                    
+                    // 更新当前章节
+                    currentChapter = pageNum - 1;
+                    
+                    pdfRendering = false;
+                }).catch(function(error) {
+                    console.error('PDF 页面渲染失败:', error);
+                    showError('PDF 页面渲染失败: ' + error.message);
+                    pdfRendering = false;
+                });
+            }).catch(function(error) {
+                console.error('PDF 页面加载失败:', error);
+                showError('PDF 页面加载失败: ' + error.message);
+                pdfRendering = false;
+            });
+        }
+        
+        // 渲染章节列表
+        function renderChapterList() {
+            const chapterList = document.getElementById('chapter-list');
+            chapterList.innerHTML = '';
+            
+            chapters.forEach((chapter, index) => {
+                const chapterItem = document.createElement('div');
+                chapterItem.className = `chapter-item`;
+                chapterItem.textContent = chapter.title;
+                chapterItem.onclick = () => switchChapter(index);
+                chapterList.appendChild(chapterItem);
+            });
+        }
+        
+        // 切换章节
+        function switchChapter(index) {
+            currentChapter = index;
+            
+            // 根据书籍格式切换
+            if (currentBook.format === 'pdf') {
+                loadPDFPage(index + 1);
+            } else {
+                const chapter = chapters[index];
+                if (!chapter || !chapter.href) {
+                    console.error('章节信息无效:', chapter);
+                    return;
+                }
+                
+                console.log('切换到章节:', chapter.title, '索引:', index);
+                
+                // 重新加载内容
+                reloadChapterContent(index);
+                
+                renderChapterList();
+                closeSidebar();
+            }
+        }
+        
+        // 重新加载章节内容
+        function reloadChapterContent(index) {
+            console.log('重新加载章节内容:', index);
+            const loading = document.getElementById('loading');
+            
+            try {
+                // 检查是否有有效的章节
+                const chapter = chapters[index];
+                if (!chapter || !chapter.href) {
+                    console.error('章节信息无效:', chapter);
+                    showError('章节信息无效，无法加载内容');
+                    return;
+                }
+                
+                console.log('加载章节:', chapter.title, 'href:', chapter.href);
+                
+                // 保存当前章节索引
+                currentChapter = index;
+                
+                // 如果渲染器已经存在，直接使用它显示章节
+                if (epubRenderer && typeof epubRenderer.display === 'function') {
+                    console.log('使用现有渲染器显示章节');
+                    loading.style.display = 'flex';
+                    
+                    epubRenderer.display(chapter.href).then(function() {
+                        console.log('章节显示成功');
+                        loading.style.display = 'none';
+                        applySettings();
+                        
+                        // 恢复批注和高亮效果
+                        loadAnnotations();
+                        highlightAnnotations();
+                    }).catch(function(error) {
+                        console.error('章节显示失败:', error);
+                        loading.style.display = 'none';
+                        // 尝试直接加载章节
+                        loadFirstChapterDirectly();
+                    });
+                } else {
+                    // 如果渲染器不存在，重新加载内容
+                    console.log('渲染器不存在，重新加载内容');
+                    loadEPUBContentStandard(null, index);
+                }
+                
+            } catch (error) {
+                console.error('重新加载章节内容错误:', error);
+                showError('无法加载章节内容: ' + error.message);
+            }
+        }
+        
+        // 上一页
+        function prevPage() {
+            if (currentChapter > 0) {
+                switchChapter(currentChapter - 1);
+            }
+        }
+        
+        // 下一页
+        function nextPage() {
+            if (currentChapter < chapters.length - 1) {
+                switchChapter(currentChapter + 1);
+            }
+        }
+        
+        // 加载书籍内容
+        function loadBookContent() {
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            // 显示加载动画
+            loading.style.display = 'flex';
+            contentContainer.style.display = 'none';
+            contentContainer.innerHTML = ''; // 清空容器内容
+            
+            try {
+                // 检查是否为TXT文件
+                if (currentBook.format === 'txt' && currentBook.fileData) {
+                    // 处理TXT文件
+                    let txtContent = currentBook.fileData;
+                    
+                    // 检查是否为Base64格式
+                    if (currentBook.dataType === 'base64') {
+                        console.log('检测到Base64格式的TXT文件，正在解码...');
+                        try {
+                            // Base64解码
+                            txtContent = atob(currentBook.fileData);
+                            console.log('Base64解码成功，内容长度:', txtContent.length);
+                        } catch (decodeError) {
+                            console.error('Base64解码失败:', decodeError);
+                            showError('TXT文件解码失败: ' + decodeError.message);
+                            loading.style.display = 'none';
+                            return;
+                        }
+                    }
+                    
+                    // 显示TXT内容
+                    contentContainer.innerHTML = `<div style="white-space: pre-wrap; line-height: 1.8; padding: 20px;">${txtContent}</div>`;
+                    chapters = [{ id: 0, title: currentBook.title, href: '' }];
+                    renderChapterList();
+                    
+                    // 应用设置
+                    applySettings();
+                    
+                    // 隐藏加载动画，显示内容
+                    loading.style.display = 'none';
+                    contentContainer.style.display = 'block';
+                    console.log('TXT文件加载完成');
+                    return;
+                }
+                
+                // 处理EPUB文件
+                if (epubBook && chapters.length > 0) {
+                    console.log('开始加载EPUB内容');
+                    
+                    // 优化渲染参数，确保章节内容支持滚动
+                    const renderOptions = {
+                        width: '100%',
+                        height: '100%',
+                        manager: 'continuous', // 使用连续模式
+                        flow: 'scrolled-continuous', // 连续滚动流
+                        spread: 'none', // 不使用双页模式
+                        styles: {
+                            'body': {
+                                'margin': '0',
+                                'padding': '20px',
+                                'font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+                            }
+                        }
+                    };
+                    
+                    console.log('开始渲染EPUB内容，使用滚动模式');
+                    
+                    try {
+                        console.log('调用 epubBook.renderTo 渲染内容');
+                        
+                        // 清空容器
+                        contentContainer.innerHTML = '';
+                        
+                        // 确保容器有正确的尺寸
+                        contentContainer.style.width = '100%';
+                        contentContainer.style.height = '100%';
+                        contentContainer.style.minHeight = '600px';
+                        contentContainer.style.position = 'relative';
+                        contentContainer.style.overflow = 'auto';
+                        
+                        // 渲染章节
+                        epubRenderer = epubBook.renderTo(contentContainer, renderOptions);
+                        console.log('renderTo 调用完成，渲染器:', epubRenderer);
+                        
+                        // 等待渲染完成
+                        epubRenderer.on('rendered', function() {
+                            console.log('EPUB内容渲染完成事件触发');
+                            completeChapterLoad();
+                        });
+                        
+                        // 处理错误
+                        epubRenderer.on('error', function(error) {
+                            console.error('渲染器错误:', error);
+                            showError('EPUB内容渲染失败: ' + error.message);
+                        });
+                        
+
+                        
+                        // 添加超时处理，确保即使事件不触发也能完成加载
+                        setTimeout(() => {
+                            if (loading.style.display !== 'none') {
+                                console.log('EPUB内容渲染事件未触发，手动完成加载');
+                                completeChapterLoad();
+                            }
+                        }, 3000);
+                        
+                    } catch (renderError) {
+                        console.error('渲染失败:', renderError);
+                        showError('EPUB内容渲染失败: ' + renderError.message);
+                    }
+                } else {
+                    console.error('无法加载EPUB内容的原因:', {
+                        epubBook: !!epubBook,
+                        chaptersLength: chapters.length
+                    });
+                    showError('无法加载EPUB内容');
+                }
+            } catch (error) {
+                console.error('加载书籍内容错误:', error);
+                showError('无法加载书籍内容');
+            }
+        }
+        
+        // 完成章节加载
+        function completeChapterLoad() {
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            // 应用当前设置
+            applySettings();
+            
+            // 隐藏加载动画，显示内容
+            loading.style.display = 'none';
+            contentContainer.style.display = 'block';
+            console.log('章节加载完成，内容显示成功');
+            
+            // 恢复批注和高亮效果
+            loadAnnotations();
+            highlightAnnotations();
+            
+            // 确保容器有内容
+            setTimeout(() => {
+                if (contentContainer.innerHTML.trim() === '' || contentContainer.children.length === 0) {
+                    console.error('内容容器为空，重新加载内容');
+                    loadBookContent();
+                }
+            }, 1000);
+        }
+        
+        // 加载整本书
+        function loadEntireBook() {
+            const loading = document.getElementById('loading');
+            const contentContainer = document.getElementById('content-container');
+            
+            // 显示加载动画
+            loading.style.display = 'flex';
+            contentContainer.style.display = 'none';
+            contentContainer.innerHTML = ''; // 清空容器内容
+            
+            try {
+                // 检查 epubBook 是否有 renderTo 方法
+                if (!epubBook || !epubBook.renderTo) {
+                    console.error('epubBook 缺少 renderTo 方法:', epubBook);
+                    showError('EPUB 阅读器初始化失败，无法渲染内容');
+                    return;
+                }
+                
+                // 确保容器有正确的尺寸
+                contentContainer.innerHTML = '';
+                contentContainer.style.width = '100%';
+                contentContainer.style.height = '100%';
+                contentContainer.style.minHeight = '400px';
+                
+                // 优化渲染参数，确保整本书一次性加载并支持滚动
+                const renderOptions = {
+                    width: '100%',
+                    height: '100%',
+                    manager: 'continuous', // 使用连续模式
+                    flow: 'scrolled-continuous', // 连续滚动流
+                    spread: 'none', // 不使用双页模式
+                    styles: {
+                        'body': {
+                            'margin': '0',
+                            'padding': '0',
+                            'font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+                        }
+                    }
+                };
+                
+                console.log('开始渲染整本书，使用滚动模式');
+                
+                // 渲染整本书
+                try {
+                    console.log('调用 epubBook.renderTo 渲染整本书');
+                    epubRenderer = epubBook.renderTo(contentContainer, renderOptions);
+                    console.log('renderTo 调用完成，渲染器:', epubRenderer);
+                    
+                    // 等待渲染完成
+                    epubRenderer.on('rendered', function() {
+                        console.log('整本书渲染完成事件触发');
+                        completeChapterLoad();
+                    });
+                    
+                    // 处理错误
+                    epubRenderer.on('error', function(error) {
+                        console.error('渲染器错误:', error);
+                        showError('整本书渲染失败: ' + error.message);
+                    });
+                    
+                    // 添加超时处理，确保即使事件不触发也能完成加载
+                    setTimeout(() => {
+                        if (loading.style.display !== 'none') {
+                            console.log('整本书渲染事件未触发，手动完成加载');
+                            completeChapterLoad();
+                        }
+                    }, 3000);
+                    
+                } catch (renderError) {
+                    console.error('renderTo 调用失败:', renderError);
+                    showError('渲染器创建失败: ' + renderError.message);
+                }
+            } catch (error) {
+                console.error('加载整本书错误:', error);
+                showError('无法加载整本书内容');
+            }
+        }
+        
+
+        
+        // 应用设置
+        function applySettings() {
+            const contentContainer = document.getElementById('content-container');
+            const readingArea = document.getElementById('reading-area');
+            const notesSidebar = document.getElementById('notes-sidebar');
+            const selectionMenu = document.getElementById('selection-menu');
+            const notePopup = document.getElementById('note-popup');
+            
+            // 检查必要的元素是否存在
+            if (!contentContainer || !readingArea) {
+                console.error('缺少必要的DOM元素');
+                return;
+            }
+            
+            // 应用主题
+            document.body.className = currentTheme;
+            
+            if (currentTheme === 'light') {
+                readingArea.style.backgroundColor = '#f8f9ff';
+                contentContainer.style.backgroundColor = 'white';
+                contentContainer.style.color = '#333';
+                if (notesSidebar) {
+                    notesSidebar.style.backgroundColor = 'white';
+                    notesSidebar.style.borderRightColor = '#f0f0f0';
+                }
+                if (selectionMenu) {
+                    // 重置菜单容器的样式，使用有创意的卡片式设计
+                    selectionMenu.style.backgroundColor = 'white';
+                    selectionMenu.style.boxShadow = '0 16px 64px rgba(64, 158, 255, 0.3)';
+                    selectionMenu.style.borderRadius = '20px';
+                    selectionMenu.style.overflow = 'hidden';
+                    selectionMenu.style.minWidth = '180px'; // 稍微改大一点
+                    selectionMenu.style.padding = '12px 0'; // 增加内边距
+                    selectionMenu.style.position = 'relative';
+                    selectionMenu.style.border = 'none';
+                    
+                    // 添加创意背景效果，使用动态渐变
+                    selectionMenu.style.background = 'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)';
+                    selectionMenu.style.animation = 'menuGradient 3s ease-in-out infinite alternate';
+                    
+                    // 添加渐变发光效果
+                    if (!selectionMenu.querySelector('.glow-effect')) {
+                        const glowEffect = document.createElement('div');
+                        glowEffect.className = 'glow-effect';
+                        glowEffect.style.position = 'absolute';
+                        glowEffect.style.top = '-50%';
+                        glowEffect.style.left = '-50%';
+                        glowEffect.style.width = '200%';
+                        glowEffect.style.height = '200%';
+                        glowEffect.style.background = 'radial-gradient(circle, rgba(64, 158, 255, 0.1) 0%, rgba(255, 128, 171, 0.1) 50%, transparent 100%)';
+                        glowEffect.style.animation = 'glowPulse 2s ease-in-out infinite';
+                        glowEffect.style.zIndex = '0';
+                        selectionMenu.appendChild(glowEffect);
+                    }
+                    
+                    // 设置菜单项的样式，使用有创意的设计
+                    const menuItems = selectionMenu.querySelectorAll('.menu-item');
+                    menuItems.forEach(item => {
+                        item.style.color = '#333';
+                        item.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                        item.style.position = 'relative';
+                        item.style.zIndex = '2';
+                        item.style.fontSize = '16px'; // 稍微增大字体
+                        item.style.padding = '16px 24px'; // 增加内边距，使菜单项更大
+                        item.style.cursor = 'pointer';
+                        item.style.borderRadius = '16px'; // 增加圆角
+                        item.style.margin = '4px 12px'; // 增加外边距
+                        item.style.fontWeight = '500'; // 增加字体权重
+                        item.style.textAlign = 'center'; // 文本居中
+                        item.style.background = 'rgba(255, 255, 255, 0.8)'; // 半透明白色背景
+                        item.style.backdropFilter = 'blur(10px)'; // 背景模糊效果
+                        item.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)'; // 轻微阴影
+                        
+                        // 优化鼠标悬停效果，使它更有趣
+                        item.onmouseover = function() {
+                            this.style.background = 'linear-gradient(135deg, #409eff 0%, #ff80ab 100%)';
+                            this.style.color = 'white';
+                            this.style.transform = 'translateY(-4px) scale(1.05)'; // 上浮并稍微放大
+                            this.style.boxShadow = '0 8px 32px rgba(64, 158, 255, 0.4)'; // 增强阴影效果
+                            this.style.borderRadius = '20px'; // 增大圆角
+                        };
+                        item.onmouseout = function() {
+                            this.style.background = 'rgba(255, 255, 255, 0.8)';
+                            this.style.color = '#333';
+                            this.style.transform = 'translateY(0) scale(1)'; // 恢复原始位置和大小
+                            this.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)'; // 恢复轻微阴影
+                            this.style.borderRadius = '16px'; // 恢复原始圆角
+                        };
+                    });
+                    
+                    // 添加必要的动画样式
+                    if (!document.getElementById('menu-animations')) {
+                        const styleSheet = document.createElement('style');
+                        styleSheet.id = 'menu-animations';
+                        styleSheet.textContent = `
+                            @keyframes menuGradient {
+                                0% { background-position: 0% 50%; }
+                                100% { background-position: 100% 50%; }
+                            }
+                            @keyframes glowPulse {
+                                0% { transform: scale(1); opacity: 0.5; }
+                                50% { transform: scale(1.1); opacity: 0.8; }
+                                100% { transform: scale(1); opacity: 0.5; }
+                            }
+                        `;
+                        document.head.appendChild(styleSheet);
+                    }
+                }
+                if (notePopup) {
+                    notePopup.style.backgroundColor = 'white';
+                    notePopup.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.1)';
+                    // 设置批注弹窗的保存按钮样式，使用与 index.html 相同的渐变色主题
+                    const saveBtn = notePopup.querySelector('#save-note');
+                    if (saveBtn) {
+                        saveBtn.style.background = 'linear-gradient(135deg, #409eff 0%, #ff80ab 100%)';
+                    }
+                }
+                if (epubRenderer) {
+                    // 尝试设置主题
+                    if (epubRenderer.theme && typeof epubRenderer.theme === 'function') {
+                        epubRenderer.theme('light');
+                        console.log('使用 theme 方法设置主题为 light');
+                    }
+                }
+            } else if (currentTheme === 'sepia') {
+                readingArea.style.backgroundColor = '#f0e6d2';
+                contentContainer.style.backgroundColor = '#f5f0e6';
+                contentContainer.style.color = '#5c4b37';
+                if (notesSidebar) {
+                    notesSidebar.style.backgroundColor = '#f5f0e6';
+                    notesSidebar.style.borderRightColor = '#e8e0d0';
+                }
+                if (selectionMenu) {
+                    selectionMenu.style.backgroundColor = '#f5f0e6';
+                    selectionMenu.style.boxShadow = '0 4px 16px rgba(92, 75, 55, 0.15)';
+                    // 设置菜单项的样式
+                    const menuItems = selectionMenu.querySelectorAll('.menu-item');
+                    menuItems.forEach(item => {
+                        item.style.color = '#5c4b37';
+                        item.onmouseover = function() {
+                            this.style.backgroundColor = '#f0e6d2';
+                        };
+                        item.onmouseout = function() {
+                            this.style.backgroundColor = '#f5f0e6';
+                        };
+                    });
+                }
+                if (notePopup) {
+                    notePopup.style.backgroundColor = '#f5f0e6';
+                    notePopup.style.boxShadow = '0 4px 16px rgba(92, 75, 55, 0.15)';
+                }
+                if (epubRenderer) {
+                    // 尝试设置主题
+                    if (epubRenderer.theme && typeof epubRenderer.theme === 'function') {
+                        epubRenderer.theme('sepia');
+                        console.log('使用 theme 方法设置主题为 sepia');
+                    }
+                }
+            }
+
+            console.log('设置应用完成');
+        }
+        
+        // 显示错误
+        function showError(message) {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const errorMessage = document.getElementById('error-message');
+            
+            loading.style.display = 'none';
+            error.style.display = 'flex';
+            errorMessage.textContent = message;
+        }
+        
+        // 打开侧边栏
+        function openSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.add('open');
+            overlay.classList.add('show');
+        }
+        
+        // 关闭侧边栏
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+        
+        // 打开设置面板
+        function openSettings() {
+            const settingsPanel = document.getElementById('settings-panel');
+            settingsPanel.classList.add('open');
+        }
+        
+        // 关闭设置面板
+        function closeSettings() {
+            const settingsPanel = document.getElementById('settings-panel');
+            settingsPanel.classList.remove('open');
+        }
+        
+        // 绑定事件
+        function bindEvents() {
+            // 返回按钮
+            document.getElementById('back-btn').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+
+            // 关闭侧边栏
+        document.getElementById('close-sidebar').addEventListener('click', closeSidebar);
+        document.getElementById('overlay').addEventListener('click', () => {
+            closeSidebar();
+            closeNotesSidebar();
+        });
+            
+            // 设置按钮
+            document.getElementById('settings-btn').addEventListener('click', openSettings);
+            
+            // 关闭设置
+            document.getElementById('close-settings').addEventListener('click', closeSettings);
+            
+            // 主题切换
+            document.querySelectorAll('.theme-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    document.querySelectorAll('.theme-option').forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+                    currentTheme = option.dataset.theme;
+                    applySettings();
+                });
+            });
+            
+            // 重试按钮
+            document.getElementById('retry-btn').addEventListener('click', loadCurrentBook);
+            
+            // 目录按钮
+            document.getElementById('toc-btn').addEventListener('click', openSidebar);
+            
+            // 翻译按钮
+            document.getElementById('translate-btn').addEventListener('click', () => {
+                window.location.href = 'translate.html';
+            });
+            
+            // 批注按钮
+            document.getElementById('notes-btn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('点击了批注按钮');
+                
+                // 直接显示批注侧边栏，不调用函数
+                const sidebar = document.getElementById('notes-sidebar');
+                const overlay = document.getElementById('overlay');
+                if (sidebar && overlay) {
+                    console.log('找到批注侧边栏和遮罩层元素');
+                    // 显示侧边栏
+                    sidebar.style.transform = 'translateX(0)';
+                    // 显示遮罩层
+                    overlay.style.display = 'block';
+                    // 渲染批注列表
+                    const notesList = document.getElementById('notes-list');
+                    if (notesList) {
+                        notesList.innerHTML = '<div style="padding: 24px; text-align: center; color: #999;">暂无批注</div>';
+                    }
+                } else {
+                    console.error('未找到必要的元素');
+                }
+            });
+            
+            // 关闭批注侧边栏
+            document.getElementById('close-notes-sidebar').addEventListener('click', closeNotesSidebar);
+            
+            // 鼠标按下事件，标记开始选择文本
+            document.addEventListener('mousedown', function(e) {
+                isSelectingText = true;
+                console.log('鼠标按下，开始选择文本');
+            });
+            
+            // 文本选择事件 - 只在鼠标释放时检查，确保菜单只在用户松开鼠标且选择了文本的情况下显示
+            document.addEventListener('mouseup', function(e) {
+                if (isSelectingText) {
+                    console.log('鼠标释放，检查文本选择');
+                    // 延迟一下，确保选择已经完成
+                    setTimeout(function() {
+                        handleTextSelection();
+                        // 延迟更长时间重置isSelectingText，确保点击事件处理完成
+                        setTimeout(function() {
+                            isSelectingText = false;
+                        }, 200);
+                    }, 50);
+                }
+            });
+            
+            // 移除 selectionchange 事件监听器，避免在选择过程中多次触发
+            // document.addEventListener('selectionchange', function(e) {
+            //     console.log('文本选择变化');
+            //     handleTextSelection();
+            // });
+            
+            // 批注弹窗事件
+            document.getElementById('save-note').addEventListener('click', saveNote);
+            document.getElementById('cancel-note').addEventListener('click', closeNotePopup);
+            document.getElementById('cancel-note-btn').addEventListener('click', closeNotePopup);
+            
+            // 点击弹窗外部关闭
+            document.getElementById('note-popup').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeNotePopup();
+                }
+            });
+            
+            // 绑定荧光笔颜色选择事件
+            bindColorSelectionEvents();
+            
+            // 文本选择菜单事件
+            document.getElementById('menu-copy').addEventListener('click', function() {
+                hideSelectionMenu();
+                // 复制选中的文本
+                let selectedText = '';
+                
+                // 首先检查主窗口的选择
+                const mainSelection = window.getSelection();
+                if (mainSelection && mainSelection.toString().trim()) {
+                    selectedText = mainSelection.toString().trim();
+                    console.log('从主窗口获取选中的文本:', selectedText);
+                } else {
+                    // 如果主窗口没有选择，检查所有 iframe
+                    const iframes = document.querySelectorAll('iframe');
+                    for (let i = 0; i < iframes.length; i++) {
+                        try {
+                            const iframe = iframes[i];
+                            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            if (iframeDoc) {
+                                const iframeSelection = iframeDoc.getSelection();
+                                if (iframeSelection && iframeSelection.toString().trim()) {
+                                    selectedText = iframeSelection.toString().trim();
+                                    console.log('从iframe获取选中的文本:', selectedText);
+                                    break;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('检查iframe选择失败:', error);
+                        }
+                    }
+                }
+                
+                // 尝试复制选中的文本
+                if (selectedText) {
+                    console.log('准备复制的文本:', selectedText);
+                    
+                    // 直接使用临时 textarea 方法，这是最可靠的方法
+                    const textarea = document.createElement('textarea');
+                    textarea.value = selectedText;
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-999999px';
+                    textarea.style.top = '-999999px';
+                    textarea.style.width = '2em';
+                    textarea.style.height = '2em';
+                    textarea.style.padding = '0';
+                    textarea.style.border = 'none';
+                    textarea.style.outline = 'none';
+                    textarea.style.boxShadow = 'none';
+                    textarea.style.background = 'transparent';
+                    
+                    document.body.appendChild(textarea);
+                    
+                    // 确保 textarea 获得焦点并被选中
+                    textarea.focus();
+                    textarea.select();
+                    
+                    try {
+                        console.log('执行复制命令');
+                        const successful = document.execCommand('copy');
+                        const msg = successful ? '复制成功' : '复制失败';
+                        console.log('复制结果:', msg);
+                        
+                        // 显示复制成功的提示
+                        showCopySuccess();
+                    } catch (error) {
+                        console.error('复制失败:', error);
+                        
+                        // 尝试使用 Clipboard API 作为备用
+                        if (navigator.clipboard && window.isSecureContext) {
+                            console.log('尝试使用 Clipboard API');
+                            navigator.clipboard.writeText(selectedText).then(function() {
+                                console.log('复制成功（使用 Clipboard API）');
+                                showCopySuccess();
+                            }).catch(function(error) {
+                                console.error('Clipboard API 复制失败:', error);
+                            });
+                        }
+                    } finally {
+                        // 无论成功还是失败，都移除临时 textarea
+                        document.body.removeChild(textarea);
+                    }
+                } else {
+                    console.error('没有选中的文本可以复制');
+                }
+            });
+            
+            // 显示复制成功的提示
+            function showCopySuccess() {
+                const notification = document.createElement('div');
+                notification.style.position = 'fixed';
+                notification.style.top = '20px';
+                notification.style.right = '20px';
+                notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                notification.style.color = 'white';
+                notification.style.padding = '10px 16px';
+                notification.style.borderRadius = '8px';
+                notification.style.fontSize = '14px';
+                notification.style.zIndex = '9999';
+                notification.style.transition = 'opacity 0.3s ease';
+                notification.textContent = '复制成功';
+                
+                document.body.appendChild(notification);
+                
+                // 3秒后淡出并移除提示
+                setTimeout(function() {
+                    notification.style.opacity = '0';
+                    setTimeout(function() {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 2000);
+            }
+            
+            document.getElementById('menu-add-note').addEventListener('click', function() {
+                hideSelectionMenu();
+                openNotePopup();
+            });
+            
+            // 点击页面其他地方隐藏选择菜单
+            document.addEventListener('click', function(e) {
+                const menu = document.getElementById('selection-menu');
+                if (!isSelectingText && menu && menu.style.display === 'block' && !menu.contains(e.target)) {
+                    // 延迟一下，确保菜单点击事件被处理
+                    setTimeout(function() {
+                        hideSelectionMenu();
+                    }, 100);
+                }
+            });
+
+            // 移除键盘翻页功能
+            // 注意：保留此注释以说明已移除键盘翻页功能
+        }
+        
+        // 处理文本选择
+        function handleTextSelection() {
+            console.log('处理文本选择');
+            
+            // 首先检查主窗口的选择
+            let selection = window.getSelection();
+            let selectedText = selection ? selection.toString().trim() : '';
+            let selectionRange = null;
+            
+            console.log('主窗口选择对象:', selection);
+            console.log('主窗口选中的文本:', selectedText);
+            
+            // 如果主窗口没有选择，检查所有 iframe
+            if (!selectedText) {
+                console.log('主窗口没有选择，检查 iframe');
+                const iframes = document.querySelectorAll('iframe');
+                for (let i = 0; i < iframes.length; i++) {
+                    try {
+                        const iframe = iframes[i];
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc) {
+                            const iframeSelection = iframeDoc.getSelection();
+                            if (iframeSelection) {
+                                const iframeSelectedText = iframeSelection.toString().trim();
+                                console.log('iframe选择对象:', iframeSelection);
+                                console.log('iframe选中的文本:', iframeSelectedText);
+                                if (iframeSelectedText) {
+                                    selectedText = iframeSelectedText;
+                                    selection = iframeSelection;
+                                    if (iframeSelection.rangeCount > 0) {
+                                        selectionRange = iframeSelection.getRangeAt(0);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('检查iframe选择失败:', error);
+                    }
+                }
+            } else {
+                // 主窗口有选择，获取选择范围
+                if (selection.rangeCount > 0) {
+                    selectionRange = selection.getRangeAt(0);
+                }
+            }
+            
+            // 更新全局变量
+            window.selectedText = selectedText;
+            window.selectionRange = selectionRange;
+            
+            // 显示或隐藏菜单
+            if (selectedText) {
+                console.log('有选中的文本，显示菜单');
+                showSelectionMenu();
+            } else {
+                console.log('没有选中的文本，隐藏菜单');
+                hideSelectionMenu();
+            }
+        }
+        
+        // 显示文本选择菜单
+        function showSelectionMenu() {
+            console.log('显示文本选择菜单');
+            const menu = document.getElementById('selection-menu');
+            console.log('菜单元素:', menu);
+            
+            if (menu) {
+                let rect = null;
+                
+                // 首先检查所有 iframe（优先使用 iframe 中的选择范围）
+                console.log('首先检查 iframe 中的选择范围');
+                const iframes = document.querySelectorAll('iframe');
+                for (let i = 0; i < iframes.length; i++) {
+                    try {
+                        const iframe = iframes[i];
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc) {
+                            const iframeSelection = iframeDoc.getSelection();
+                            if (iframeSelection && iframeSelection.rangeCount > 0) {
+                                try {
+                                    const iframeRange = iframeSelection.getRangeAt(0);
+                                    const iframeRect = iframeRange.getBoundingClientRect();
+                                    console.log('iframe选中区域的位置:', iframeRect);
+                                    
+                                    // 获取 iframe 在页面中的位置
+                                    const iframeOffset = iframe.getBoundingClientRect();
+                                    console.log('iframe在页面中的位置:', iframeOffset);
+                                    
+                                    // 转换坐标为页面坐标
+                                    rect = {
+                                        left: iframeRect.left + iframeOffset.left,
+                                        top: iframeRect.top + iframeOffset.top,
+                                        width: iframeRect.width,
+                                        height: iframeRect.height,
+                                        bottom: iframeRect.top + iframeOffset.top + iframeRect.height
+                                    };
+                                    console.log('转换后的页面坐标:', rect);
+                                    break;
+                                } catch (error) {
+                                    console.error('获取 iframe 选择范围失败:', error);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('检查iframe选择失败:', error);
+                    }
+                }
+                
+                // 如果 iframe 中没有选择，尝试检查主窗口的选择
+                if (!rect) {
+                    const mainSelection = window.getSelection();
+                    if (mainSelection && mainSelection.rangeCount > 0) {
+                        try {
+                            const mainRange = mainSelection.getRangeAt(0);
+                            rect = mainRange.getBoundingClientRect();
+                            console.log('主窗口选中区域的位置:', rect);
+                        } catch (error) {
+                            console.error('获取主窗口选择范围失败:', error);
+                        }
+                    } else if (window.selectionRange) {
+                        // 如果主窗口没有选择，尝试使用全局的 selectionRange
+                        try {
+                            rect = window.selectionRange.getBoundingClientRect();
+                            console.log('使用全局 selectionRange 获取选中区域的位置:', rect);
+                        } catch (error) {
+                            console.error('使用全局 selectionRange 获取 rect 失败:', error);
+                        }
+                    }
+                }
+                
+                // 如果找到了选择范围
+                if (rect) {
+                    // 强制设置菜单的宽度，确保它有一个固定的尺寸
+                    menu.style.width = '120px';
+                    
+                    // 计算菜单位置，确保在选择的文字旁边
+                    // 菜单位置在选择区域的正下方，绝对不会遮挡文字
+                    let left = rect.left; // 菜单位置在选择区域的左侧
+                    let top = rect.bottom + 8; // 菜单位置在选择区域的正下方，距离8px，确保不遮挡
+                    
+                    // 调整位置，确保菜单在视口内
+                    if (left < 10) left = 10;
+                    if (left + 120 > window.innerWidth) left = window.innerWidth - 130;
+                    if (top + menu.offsetHeight > window.innerHeight) {
+                        // 如果下方空间不足，则显示在上方，但要确保不遮挡文字
+                        top = rect.top - menu.offsetHeight - 8;
+                        if (top < 10) {
+                            // 如果上方也不足，则显示在右侧
+                            top = rect.top + (rect.height - menu.offsetHeight) / 2;
+                            left = rect.left + rect.width + 10;
+                            if (left + 120 > window.innerWidth) {
+                                left = rect.left - 130;
+                                if (left < 10) {
+                                    left = 10;
+                                }
+                            }
+                        }
+                    }
+                    
+                    console.log('计算的菜单位置:', left, top);
+                    
+                    // 直接设置菜单位置，确保每次都更新
+                    menu.style.position = 'fixed';
+                    menu.style.left = `${left}px`;
+                    menu.style.top = `${top}px`;
+                    menu.style.display = 'block';
+                    console.log('菜单已显示');
+                } else {
+                    // 如果仍然没有找到选择范围，但有选中的文本，使用一个默认位置
+                    if (window.selectedText) {
+                        console.log('未找到选择范围，但有选中的文本，使用默认位置');
+                        menu.style.position = 'fixed';
+                        menu.style.left = '100px';
+                        menu.style.top = '100px';
+                        menu.style.display = 'block';
+                        console.log('菜单已显示（使用默认位置）');
+                    } else {
+                        console.error('未找到选择范围和选中的文本');
+                        hideSelectionMenu();
+                    }
+                }
+            }
+        }
+        
+        // 隐藏文本选择菜单
+        function hideSelectionMenu() {
+            console.log('隐藏文本选择菜单');
+            const menu = document.getElementById('selection-menu');
+            if (menu) {
+                menu.style.display = 'none';
+                console.log('菜单已隐藏');
+            }
+        }
+        
+        // 打开批注弹窗
+        function openNotePopup() {
+            const popup = document.getElementById('note-popup');
+            if (popup) {
+                // 显示弹窗
+                popup.classList.add('show');
+                
+                // 清空并聚焦批注内容输入框
+                document.getElementById('note-content').value = '';
+                document.getElementById('note-content').focus();
+                
+                // 重置颜色选择
+                selectedColor = '#ffff00';
+                document.querySelectorAll('.color-option').forEach(option => {
+                    option.style.borderColor = 'transparent';
+                });
+                document.querySelector('[data-color="#ffff00"]').style.borderColor = '#409eff';
+                document.querySelector('[data-color="#ffff00"]').style.transform = 'scale(1.1)';
+            }
+        }
+        
+        // 关闭批注弹窗
+        function closeNotePopup() {
+            const popup = document.getElementById('note-popup');
+            if (popup) {
+                popup.classList.remove('show');
+            }
+            // 清除选中的文本和选择范围，确保下次选择时菜单位置正确更新
+            window.selectedText = '';
+            window.selectionRange = null;
+            // 清除文档中的选择
+            const selection = window.getSelection();
+            if (selection) {
+                selection.removeAllRanges();
+            }
+            // 清除所有iframe中的选择
+            const iframes = document.querySelectorAll('iframe');
+            for (let i = 0; i < iframes.length; i++) {
+                try {
+                    const iframe = iframes[i];
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        const iframeSelection = iframeDoc.getSelection();
+                        if (iframeSelection) {
+                            iframeSelection.removeAllRanges();
+                        }
+                    }
+                } catch (error) {
+                    console.error('清除iframe选择失败:', error);
+                }
+            }
+        }
+        
+        // 保存批注
+        function saveNote() {
+            console.log('保存批注函数被调用');
+            const noteContent = document.getElementById('note-content').value.trim();
+            console.log('批注内容:', noteContent);
+            console.log('选中的文本:', window.selectedText);
+            console.log('当前书籍:', currentBook);
+            console.log('当前章节:', currentChapter);
+            console.log('选中颜色:', selectedColor);
+            console.log('chapters数组:', chapters);
+            console.log('chapters长度:', chapters.length);
+            
+            if (window.selectedText && noteContent) {
+                const annotation = {
+                    id: Date.now().toString(),
+                    bookId: currentBook ? currentBook.id || currentBook.title : 'unknown',
+                    chapterIndex: currentChapter,
+                    chapterTitle: chapters[currentChapter] ? chapters[currentChapter].title : 'unknown',
+                    selectedText: window.selectedText,
+                    note: noteContent,
+                    color: selectedColor,
+                    createdAt: new Date().toISOString()
+                };
+                
+                console.log('创建的批注对象:', annotation);
+                
+                // 确保annotations数组存在
+                if (!annotations) {
+                    annotations = [];
+                    console.log('初始化annotations数组');
+                }
+                
+                annotations.push(annotation);
+                console.log('添加批注后annotations长度:', annotations.length);
+                
+                saveAnnotations();
+                renderAnnotationsList();
+                highlightAnnotations();
+                closeNotePopup();
+                
+                console.log('批注保存成功');
+            } else {
+                console.error('保存批注失败：缺少必要信息');
+                console.error('选中的文本:', window.selectedText);
+                console.error('批注内容:', noteContent);
+                alert('请选择文字并输入批注内容');
+            }
+        }
+        
+        // 绑定荧光笔颜色选择事件
+        function bindColorSelectionEvents() {
+            document.querySelectorAll('.color-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // 重置所有颜色选项
+                    document.querySelectorAll('.color-option').forEach(opt => {
+                        opt.style.borderColor = 'transparent';
+                        opt.style.transform = 'scale(1)';
+                    });
+                    
+                    // 设置选中的颜色
+                    selectedColor = this.dataset.color;
+                    this.style.borderColor = '#409eff';
+                    this.style.transform = 'scale(1.1)';
+                });
+            });
+        }
+        
+        // 高亮批注文本
+        function highlightAnnotations() {
+            console.log('高亮批注文本');
+            
+            // 获取当前选中的文本范围
+            if (window.selectionRange) {
+                try {
+                    console.log('使用全局 selectionRange 进行高亮');
+                    
+                    // 创建高亮效果
+                    const range = window.selectionRange;
+                    const selectedText = range.toString().trim();
+                    
+                    if (selectedText) {
+                        console.log('选中文本:', selectedText);
+                        console.log('高亮颜色:', selectedColor);
+                        
+                        // 创建span元素包裹选中的文本
+                        const span = document.createElement('span');
+                        span.style.backgroundColor = selectedColor;
+                        span.style.padding = '0 2px';
+                        span.style.borderRadius = '2px';
+                        span.style.transition = 'all 0.3s ease';
+                        span.setAttribute('data-annotation', 'true');
+                        
+                        // 尝试使用surroundContents方法
+                        try {
+                            range.surroundContents(span);
+                            console.log('使用surroundContents方法成功添加高亮');
+                        } catch (error) {
+                            console.error('surroundContents失败，尝试其他方法:', error);
+                            
+                            // 备用方法：创建新的文本节点
+                            const fragment = range.extractContents();
+                            span.appendChild(fragment);
+                            range.insertNode(span);
+                            console.log('使用extractContents和insertNode方法添加高亮');
+                        }
+                    }
+                } catch (error) {
+                    console.error('高亮文本失败:', error);
+                }
+            } else {
+                console.error('没有选中的文本范围');
+            }
+        }
+        
+        // 打开批注侧边栏
+        function openNotesSidebar() {
+            console.log('打开批注侧边栏');
+            // 直接操作样式，不使用类
+            const sidebar = document.getElementById('notes-sidebar');
+            const overlay = document.getElementById('overlay');
+            if (sidebar && overlay) {
+                console.log('找到批注侧边栏和遮罩层元素');
+                // 显示侧边栏
+                sidebar.style.transform = 'translateX(0)';
+                sidebar.style.display = 'block';
+                // 显示遮罩层
+                overlay.style.display = 'block';
+                // 渲染批注列表
+                renderAnnotationsList();
+            } else {
+                console.error('未找到必要的元素');
+                console.log('sidebar:', sidebar);
+                console.log('overlay:', overlay);
+            }
+        }
+        
+        // 关闭批注侧边栏
+        function closeNotesSidebar() {
+            console.log('关闭批注侧边栏');
+            // 直接操作样式，不使用类
+            const sidebar = document.getElementById('notes-sidebar');
+            const overlay = document.getElementById('overlay');
+            if (sidebar && overlay) {
+                // 隐藏侧边栏
+                sidebar.style.transform = 'translateX(-100%)';
+                // 隐藏遮罩层
+                overlay.style.display = 'none';
+            }
+        }
+        
+        // 加载批注
+        function loadAnnotations() {
+            console.log('加载批注函数被调用');
+            console.log('currentBook:', currentBook);
+            
+            // 即使currentBook为null，也尝试加载批注（使用默认bookId）
+            const bookId = currentBook ? currentBook.id || currentBook.title : 'unknown';
+            console.log('书籍ID:', bookId);
+            const storedAnnotations = localStorage.getItem(`godReaderAnnotations_${bookId}`);
+            console.log('本地存储的批注数据:', storedAnnotations);
+            
+            if (storedAnnotations) {
+                try {
+                    annotations = JSON.parse(storedAnnotations);
+                    console.log('加载的批注数量:', annotations.length);
+                } catch (error) {
+                    console.error('加载批注失败:', error);
+                    annotations = [];
+                }
+            } else {
+                console.log('本地存储中没有批注数据');
+                annotations = [];
+            }
+        }
+        
+        // 保存批注
+        function saveAnnotations() {
+            console.log('保存批注到本地存储');
+            console.log('currentBook:', currentBook);
+            console.log('annotations数组:', annotations);
+            
+            // 即使currentBook为null，也保存批注（使用默认bookId）
+            const bookId = currentBook ? currentBook.id || currentBook.title : 'unknown';
+            console.log('书籍ID:', bookId);
+            console.log('存储的批注数量:', annotations.length);
+            localStorage.setItem(`godReaderAnnotations_${bookId}`, JSON.stringify(annotations));
+            console.log('批注保存成功到本地存储');
+        }
+        
+        // 渲染批注列表
+        function renderAnnotationsList() {
+            console.log('渲染批注列表函数被调用');
+            console.log('annotations数组长度:', annotations.length);
+            console.log('annotations数组内容:', annotations);
+            
+            const notesList = document.getElementById('notes-list');
+            console.log('notesList元素:', notesList);
+            
+            notesList.innerHTML = '';
+            
+            if (annotations.length === 0) {
+                console.log('annotations数组为空，显示暂无批注');
+                notesList.innerHTML = '<div style="padding: 24px; text-align: center; color: #999;">暂无批注</div>';
+                return;
+            }
+            
+            console.log('开始渲染批注列表，批注数量:', annotations.length);
+            
+            annotations.forEach(annotation => {
+                const noteItem = document.createElement('div');
+                noteItem.style.padding = '14px 24px';
+                noteItem.style.borderBottom = '1px solid #f0f0f0';
+                noteItem.style.cursor = 'pointer';
+                noteItem.style.transition = 'background-color 0.3s ease';
+                noteItem.onmouseover = () => noteItem.style.backgroundColor = '#f8f9ff';
+                noteItem.onmouseout = () => noteItem.style.backgroundColor = 'white';
+                
+                const noteText = document.createElement('div');
+                noteText.style.fontSize = '14px';
+                noteText.style.color = '#666';
+                noteText.style.marginBottom = '8px';
+                noteText.style.lineHeight = '1.4';
+                noteText.style.wordBreak = 'break-all';
+                noteText.style.backgroundColor = annotation.color;
+                noteText.style.padding = '4px 8px';
+                noteText.style.borderRadius = '4px';
+                noteText.textContent = annotation.selectedText;
+                
+                const noteContent = document.createElement('div');
+                noteContent.style.fontSize = '12px';
+                noteContent.style.color = '#999';
+                noteContent.style.marginBottom = '8px';
+                noteContent.style.lineHeight = '1.4';
+                noteContent.style.wordBreak = 'break-all';
+                noteContent.textContent = annotation.note;
+                
+                const noteMeta = document.createElement('div');
+                noteMeta.style.fontSize = '11px';
+                noteMeta.style.color = '#ccc';
+                noteMeta.style.marginBottom = '8px';
+                noteMeta.textContent = `${annotation.chapterTitle} · ${new Date(annotation.createdAt).toLocaleString()}`;
+                
+                // 编辑按钮
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '编辑';
+                editBtn.style.padding = '4px 12px';
+                editBtn.style.fontSize = '12px';
+                editBtn.style.color = '#409eff';
+                editBtn.style.backgroundColor = 'white';
+                editBtn.style.border = '1px solid #409eff';
+                editBtn.style.borderRadius = '4px';
+                editBtn.style.cursor = 'pointer';
+                editBtn.style.transition = 'all 0.3s ease';
+                editBtn.style.marginRight = '8px';
+                editBtn.onmouseover = () => {
+                    editBtn.style.backgroundColor = '#409eff';
+                    editBtn.style.color = 'white';
+                };
+                editBtn.onmouseout = () => {
+                    editBtn.style.backgroundColor = 'white';
+                    editBtn.style.color = '#409eff';
+                };
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    editAnnotation(annotation.id);
+                };
+                
+                // 删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '删除';
+                deleteBtn.style.padding = '4px 12px';
+                deleteBtn.style.fontSize = '12px';
+                deleteBtn.style.color = '#ff6b6b';
+                deleteBtn.style.backgroundColor = 'white';
+                deleteBtn.style.border = '1px solid #ff6b6b';
+                deleteBtn.style.borderRadius = '4px';
+                deleteBtn.style.cursor = 'pointer';
+                deleteBtn.style.transition = 'all 0.3s ease';
+                deleteBtn.onmouseover = () => {
+                    deleteBtn.style.backgroundColor = '#ff6b6b';
+                    deleteBtn.style.color = 'white';
+                };
+                deleteBtn.onmouseout = () => {
+                    deleteBtn.style.backgroundColor = 'white';
+                    deleteBtn.style.color = '#ff6b6b';
+                };
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteAnnotation(annotation.id);
+                };
+                
+                // 按钮容器
+                const btnContainer = document.createElement('div');
+                btnContainer.style.display = 'flex';
+                btnContainer.style.justifyContent = 'flex-end';
+                btnContainer.style.marginTop = '8px';
+                btnContainer.appendChild(editBtn);
+                btnContainer.appendChild(deleteBtn);
+                
+                noteItem.appendChild(noteText);
+                noteItem.appendChild(noteContent);
+                noteItem.appendChild(noteMeta);
+                noteItem.appendChild(btnContainer);
+                notesList.appendChild(noteItem);
+            });
+        }
+        
+        // 删除批注
+        function deleteAnnotation(annotationId) {
+            if (confirm('确定要删除这条批注吗？')) {
+                annotations = annotations.filter(annotation => annotation.id !== annotationId);
+                saveAnnotations();
+                renderAnnotationsList();
+                highlightAnnotations();
+            }
+        }
+        
+        // 编辑批注
+        function editAnnotation(annotationId) {
+            const annotation = annotations.find(annot => annot.id === annotationId);
+            if (!annotation) return;
+            
+            // 创建编辑弹窗
+            const popup = document.createElement('div');
+            popup.style.position = 'fixed';
+            popup.style.top = '0';
+            popup.style.left = '0';
+            popup.style.width = '100%';
+            popup.style.height = '100%';
+            popup.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            popup.style.display = 'flex';
+            popup.style.alignItems = 'center';
+            popup.style.justifyContent = 'center';
+            popup.style.zIndex = '1000';
+            
+            const content = document.createElement('div');
+            content.style.backgroundColor = 'white';
+            content.style.padding = '24px';
+            content.style.borderRadius = '12px';
+            content.style.maxWidth = '500px';
+            content.style.width = '90%';
+            content.style.boxShadow = '0 4px 24px rgba(0, 0, 0, 0.15)';
+            
+            const title = document.createElement('h3');
+            title.textContent = '编辑批注';
+            title.style.marginBottom = '16px';
+            title.style.fontSize = '18px';
+            title.style.color = '#333';
+            
+            const selectedTextDiv = document.createElement('div');
+            selectedTextDiv.style.fontSize = '14px';
+            selectedTextDiv.style.color = '#666';
+            selectedTextDiv.style.marginBottom = '16px';
+            selectedTextDiv.style.backgroundColor = annotation.color;
+            selectedTextDiv.style.padding = '8px 12px';
+            selectedTextDiv.style.borderRadius = '4px';
+            selectedTextDiv.style.opacity = '0.5';
+            selectedTextDiv.textContent = '选中的文字: ' + annotation.selectedText;
+            
+            const noteLabel = document.createElement('div');
+            noteLabel.textContent = '批注内容：';
+            noteLabel.style.fontSize = '14px';
+            noteLabel.style.color = '#666';
+            noteLabel.style.marginBottom = '8px';
+            
+            const noteInput = document.createElement('textarea');
+            noteInput.value = annotation.note;
+            noteInput.style.width = '100%';
+            noteInput.style.minHeight = '120px';
+            noteInput.style.padding = '12px';
+            noteInput.style.border = '1px solid #e0e0e0';
+            noteInput.style.borderRadius = '8px';
+            noteInput.style.resize = 'vertical';
+            noteInput.style.fontFamily = 'inherit';
+            noteInput.style.fontSize = '14px';
+            noteInput.style.lineHeight = '1.5';
+            noteInput.style.marginBottom = '20px';
+            
+            const btnContainer = document.createElement('div');
+            btnContainer.style.display = 'flex';
+            btnContainer.style.justifyContent = 'flex-end';
+            btnContainer.style.gap = '12px';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = '取消';
+            cancelBtn.style.padding = '8px 24px';
+            cancelBtn.style.backgroundColor = '#f0f0f0';
+            cancelBtn.style.color = '#333';
+            cancelBtn.style.border = 'none';
+            cancelBtn.style.borderRadius = '6px';
+            cancelBtn.style.cursor = 'pointer';
+            cancelBtn.style.fontSize = '14px';
+            cancelBtn.style.transition = 'all 0.3s ease';
+            cancelBtn.onmouseover = () => cancelBtn.style.backgroundColor = '#e0e0e0';
+            cancelBtn.onmouseout = () => cancelBtn.style.backgroundColor = '#f0f0f0';
+            cancelBtn.onclick = () => document.body.removeChild(popup);
+            
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = '保存';
+            saveBtn.style.padding = '8px 24px';
+            saveBtn.style.backgroundColor = '#409eff';
+            saveBtn.style.color = 'white';
+            saveBtn.style.border = 'none';
+            saveBtn.style.borderRadius = '6px';
+            saveBtn.style.cursor = 'pointer';
+            saveBtn.style.fontSize = '14px';
+            saveBtn.style.transition = 'all 0.3s ease';
+            saveBtn.onmouseover = () => saveBtn.style.backgroundColor = '#66b1ff';
+            saveBtn.onmouseout = () => saveBtn.style.backgroundColor = '#409eff';
+            saveBtn.onclick = () => {
+                const newNote = noteInput.value.trim();
+                if (newNote) {
+                    annotation.note = newNote;
+                    annotation.updatedAt = new Date().toISOString();
+                    saveAnnotations();
+                    renderAnnotationsList();
+                    document.body.removeChild(popup);
+                } else {
+                    alert('请输入批注内容');
+                }
+            };
+            
+            btnContainer.appendChild(cancelBtn);
+            btnContainer.appendChild(saveBtn);
+            
+            content.appendChild(title);
+            content.appendChild(selectedTextDiv);
+            content.appendChild(noteLabel);
+            content.appendChild(noteInput);
+            content.appendChild(btnContainer);
+            
+            popup.appendChild(content);
+            document.body.appendChild(popup);
+            
+            // 点击弹窗外部关闭
+            popup.addEventListener('click', function(e) {
+                if (e.target === popup) {
+                    document.body.removeChild(popup);
+                }
+            });
+        }
+        
+        // 高亮显示批注
+        function highlightAnnotations() {
+            console.log('高亮显示批注:', annotations.length);
+            
+            // 清除所有现有的高亮
+            clearHighlights();
+            
+            // 为当前章节的批注添加高亮
+            const currentChapterAnnotations = annotations.filter(annotation => annotation.chapterIndex === currentChapter);
+            console.log('当前章节批注数量:', currentChapterAnnotations.length);
+            
+            // 查找内容容器
+            const contentContainer = document.getElementById('content-container');
+            if (!contentContainer) {
+                console.error('未找到内容容器');
+                return;
+            }
+            
+            // 检查是否在iframe中
+            const iframes = contentContainer.querySelectorAll('iframe');
+            if (iframes.length > 0) {
+                // 在iframe中添加高亮
+                const iframe = iframes[0];
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        addHighlightsToDocument(iframeDoc, currentChapterAnnotations);
+                    }
+                } catch (error) {
+                    console.error('在iframe中添加高亮失败:', error);
+                }
+            } else {
+                // 在主窗口中添加高亮
+                addHighlightsToDocument(document, currentChapterAnnotations);
+            }
+        }
+        
+        // 在文档中添加高亮
+        function addHighlightsToDocument(doc, annotations) {
+            console.log('在文档中添加高亮，批注数量:', annotations.length);
+            
+            annotations.forEach(annotation => {
+                try {
+                    // 查找包含批注文本的节点
+                    const walker = doc.createTreeWalker(
+                        doc.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    
+                    let node;
+                    let found = false;
+                    
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.includes(annotation.selectedText)) {
+                            // 创建高亮标记
+                            const highlightSpan = doc.createElement('span');
+                            highlightSpan.className = 'annotation-highlight';
+                            highlightSpan.style.backgroundColor = annotation.color;
+                            highlightSpan.style.padding = '2px 4px';
+                            highlightSpan.style.borderRadius = '2px';
+                            highlightSpan.style.cursor = 'pointer';
+                            highlightSpan.style.opacity = '0.3'; // 设置半透明效果，更逼真
+                            highlightSpan.style.transition = 'all 0.3s ease';
+                            highlightSpan.style.display = 'inline';
+                            highlightSpan.style.position = 'relative';
+                            highlightSpan.style.zIndex = '1';
+                            highlightSpan.style.boxShadow = 'none';
+                            highlightSpan.style.textDecoration = 'none'; // 移除下划线
+                            highlightSpan.style.color = 'inherit'; // 保持文字原来的颜色
+                            highlightSpan.style.font = 'inherit'; // 保持文字原来的字体
+                            highlightSpan.style.lineHeight = 'inherit'; // 保持文字原来的行高
+                            highlightSpan.dataset.annotationId = annotation.id;
+                            highlightSpan.title = annotation.note;
+                            
+                            // 添加点击事件，显示批注内容
+                            highlightSpan.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                showAnnotationPopup(annotation);
+                            });
+                            
+                            // 替换文本节点
+                            const textContent = node.textContent;
+                            const beforeText = textContent.substring(0, textContent.indexOf(annotation.selectedText));
+                            const afterText = textContent.substring(textContent.indexOf(annotation.selectedText) + annotation.selectedText.length);
+                            
+                            const parentNode = node.parentNode;
+                            
+                            if (beforeText) {
+                                parentNode.insertBefore(doc.createTextNode(beforeText), node);
+                            }
+                            
+                            highlightSpan.textContent = annotation.selectedText;
+                            parentNode.insertBefore(highlightSpan, node);
+                            
+                            if (afterText) {
+                                parentNode.insertBefore(doc.createTextNode(afterText), node);
+                            }
+                            
+                            parentNode.removeChild(node);
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found) {
+                        console.warn('未找到批注文本:', annotation.selectedText);
+                    }
+                } catch (error) {
+                    console.error('添加高亮失败:', error);
+                }
+            });
+        }
+        
+        // 显示批注弹窗
+        function showAnnotationPopup(annotation) {
+            const popup = document.createElement('div');
+            popup.style.position = 'fixed';
+            popup.style.top = '50%';
+            popup.style.left = '50%';
+            popup.style.transform = 'translate(-50%, -50%)';
+            popup.style.backgroundColor = 'white';
+            popup.style.padding = '24px';
+            popup.style.borderRadius = '12px';
+            popup.style.boxShadow = '0 4px 24px rgba(0, 0, 0, 0.15)';
+            popup.style.zIndex = '1000';
+            popup.style.maxWidth = '400px';
+            popup.style.width = '90%';
+            
+            const title = document.createElement('h3');
+            title.textContent = '批注详情';
+            title.style.marginBottom = '16px';
+            title.style.fontSize = '18px';
+            title.style.color = '#333';
+            
+            const selectedText = document.createElement('div');
+            selectedText.textContent = annotation.selectedText;
+            selectedText.style.backgroundColor = annotation.color;
+            selectedText.style.padding = '8px 12px';
+            selectedText.style.borderRadius = '4px';
+            selectedText.style.marginBottom = '12px';
+            selectedText.style.fontSize = '14px';
+            selectedText.style.lineHeight = '1.4';
+            
+            const noteLabel = document.createElement('div');
+            noteLabel.textContent = '批注内容：';
+            noteLabel.style.fontSize = '14px';
+            noteLabel.style.color = '#666';
+            noteLabel.style.marginBottom = '8px';
+            
+            const noteContent = document.createElement('div');
+            noteContent.textContent = annotation.note;
+            noteContent.style.backgroundColor = '#f8f9ff';
+            noteContent.style.padding = '12px';
+            noteContent.style.borderRadius = '8px';
+            noteContent.style.fontSize = '14px';
+            noteContent.style.lineHeight = '1.6';
+            noteContent.style.marginBottom = '16px';
+            noteContent.style.color = '#333';
+            
+            const meta = document.createElement('div');
+            meta.textContent = `${annotation.chapterTitle} · ${new Date(annotation.createdAt).toLocaleString()}`;
+            meta.style.fontSize = '12px';
+            meta.style.color = '#999';
+            meta.style.marginBottom = '16px';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '关闭';
+            closeBtn.style.padding = '8px 24px';
+            closeBtn.style.backgroundColor = '#409eff';
+            closeBtn.style.color = 'white';
+            closeBtn.style.border = 'none';
+            closeBtn.style.borderRadius = '6px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.fontSize = '14px';
+            closeBtn.style.transition = 'all 0.3s ease';
+            closeBtn.onmouseover = () => closeBtn.style.backgroundColor = '#66b1ff';
+            closeBtn.onmouseout = () => closeBtn.style.backgroundColor = '#409eff';
+            closeBtn.onclick = () => document.body.removeChild(popup);
+            
+            popup.appendChild(title);
+            popup.appendChild(selectedText);
+            popup.appendChild(noteLabel);
+            popup.appendChild(noteContent);
+            popup.appendChild(meta);
+            popup.appendChild(closeBtn);
+            
+            document.body.appendChild(popup);
+            
+            // 点击弹窗外部关闭
+            popup.addEventListener('click', function(e) {
+                if (e.target === popup) {
+                    document.body.removeChild(popup);
+                }
+            });
+        }
+        
+        // 清除所有高亮
+        function clearHighlights() {
+            console.log('清除所有高亮');
+            
+            // 查找内容容器
+            const contentContainer = document.getElementById('content-container');
+            if (!contentContainer) {
+                return;
+            }
+            
+            // 检查是否在iframe中
+            const iframes = contentContainer.querySelectorAll('iframe');
+            if (iframes.length > 0) {
+                // 在iframe中清除高亮
+                const iframe = iframes[0];
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        const highlights = iframeDoc.querySelectorAll('.annotation-highlight');
+                        highlights.forEach(highlight => {
+                            const parent = highlight.parentNode;
+                            const text = highlight.textContent;
+                            parent.replaceChild(iframeDoc.createTextNode(text), highlight);
+                            parent.normalize();
+                        });
+                    }
+                } catch (error) {
+                    console.error('在iframe中清除高亮失败:', error);
+                }
+            } else {
+                // 在主窗口中清除高亮
+                const highlights = document.querySelectorAll('.annotation-highlight');
+                highlights.forEach(highlight => {
+                    const parent = highlight.parentNode;
+                    const text = highlight.textContent;
+                    parent.replaceChild(document.createTextNode(text), highlight);
+                    parent.normalize();
+                });
+            }
+        }
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>
